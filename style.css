@@ -1,0 +1,664 @@
+/* ============================================================
+   DUEL CARD GAME — style.css
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --accent: #e94560;
+  --mana: #53d8fb;
+  --hp: #50fa7b;
+  --gold: #f1c40f;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --card-creature: #1e3a5f;
+  --card-action: #3a1e5f;
+  --card-border: #2a4a7f;
+  --slot-empty: #0d1b2a;
+  --attacking: #ff6b35;
+  --targeted: #c0392b;
+  --clickable: #2ecc71;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+/* ---- TOP-LEVEL APP ---- */
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- MAIN LAYOUT: game area + log column ---- */
+#main-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ---- GAME AREA (left of log) ---- */
+#game-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ---- RIGHT LOG COLUMN ---- */
+#log-column {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 2px solid var(--card-border);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.log-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--gold);
+  padding: 10px 10px 6px;
+  border-bottom: 1px solid var(--card-border);
+  flex-shrink: 0;
+}
+
+.log-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.log-entry {
+  border-bottom: 1px solid #1a2a3a;
+  padding: 2px 0;
+}
+
+.log-entry:first-child {
+  color: var(--text);
+}
+
+/* ---- PLAYER ZONES ---- */
+.player-zone {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  padding: 6px;
+  gap: 6px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.top-zone {
+  border-bottom: 1px solid #2a4a7f;
+}
+
+.bot-zone {
+  border-top: 1px solid #2a4a7f;
+}
+
+/* ---- SIDE PANEL (left column per player) ---- */
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 86px;
+  flex-shrink: 0;
+  justify-content: flex-start;
+  padding-top: 2px;
+}
+
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 5px 4px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.zone-box {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 5px 4px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.zone-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.zone-count {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--text);
+}
+
+.stat-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--mana);
+}
+
+.hp-val { color: var(--hp); }
+
+.player-label {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 3px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.player-label.active-player {
+  color: var(--gold);
+  background: rgba(241,196,15,0.1);
+}
+
+/* ---- CENTER PANELS ---- */
+.center-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* P2: hand on top, board on bottom */
+.top-center {
+  flex-direction: column;
+}
+
+/* P1: board on top, hand on bottom */
+.bot-center {
+  flex-direction: column;
+}
+
+/* ---- HAND ZONE ---- */
+.hand-zone {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 4px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 6px;
+  border: 1px solid #1a3050;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 120px;
+  max-height: 140px;
+}
+
+.hand-card {
+  flex-shrink: 0;
+  width: 96px;
+  min-height: 110px;
+  border-radius: 6px;
+  cursor: default;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+
+.hand-card.clickable {
+  cursor: pointer;
+  outline: 2px solid var(--clickable);
+  outline-offset: 2px;
+}
+
+.hand-card.clickable:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 24px rgba(46, 204, 113, 0.4);
+}
+
+.hand-card:not(.clickable):hover {
+  transform: translateY(-4px);
+}
+
+.card-inner {
+  width: 100%;
+  min-height: 110px;
+  border-radius: 6px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  border: 1px solid var(--card-border);
+}
+
+.creature-type {
+  background: var(--card-creature);
+  border-color: #2a6abf;
+}
+
+.action-type {
+  background: var(--card-action);
+  border-color: #5a2a8f;
+}
+
+.card-type-badge {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.card-name {
+  font-weight: bold;
+  font-size: 11px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-cost { color: var(--mana); font-size: 11px; }
+
+.card-stats {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  font-size: 10px;
+}
+
+.atk { color: var(--accent); }
+.blk { color: #7ec8e3; }
+.hp-bar { color: var(--hp); }
+
+.card-ability {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: auto;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* ---- BOARD ZONE ---- */
+.board-zone {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  flex: 1;
+  padding: 4px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+  border: 1px solid #1a3050;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.card-slot {
+  flex: 1;
+  min-width: 0;
+  background: var(--slot-empty);
+  border: 1px dashed #2a3a50;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, background 0.2s;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-slot.filled {
+  border-style: solid;
+  border-color: var(--card-border);
+}
+
+.card-slot.targetable {
+  border-color: var(--accent);
+  cursor: pointer;
+}
+
+.card-slot.targetable:hover {
+  background: rgba(233,69,96,0.15);
+}
+
+/* Tapped slot — give extra vertical space for rotated card */
+.card-slot.tapped-slot {
+  overflow: visible;
+  z-index: 1;
+}
+
+.empty-slot-label {
+  color: #2a3a50;
+  font-size: 20px;
+}
+
+/* ---- CREATURE ON BOARD ---- */
+.creature-card {
+  width: 100%;
+  height: 100%;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s, filter 0.35s;
+  transform-origin: center center;
+}
+
+.creature-card.tapped {
+  transform: rotate(90deg) scale(0.7);
+  opacity: 0.55;
+  filter: saturate(0.3);
+}
+
+.creature-card.attacking {
+  outline: 2px solid var(--attacking);
+  outline-offset: -2px;
+  background: rgba(255,107,53,0.15);
+}
+
+.creature-card.targeted {
+  outline: 2px solid var(--targeted);
+  outline-offset: -2px;
+  background: rgba(192,57,43,0.15);
+}
+
+/* ---- MIDDLE STRIP ---- */
+.middle-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 10px 6px;
+  background: var(--surface);
+  border-top: 1px solid #1a3050;
+  border-bottom: 1px solid #1a3050;
+  flex-shrink: 0;
+  min-height: 70px;
+  max-height: 100px;
+  overflow: hidden;
+  position: relative;
+}
+
+.phase-indicator {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--gold);
+  white-space: nowrap;
+  min-width: 180px;
+}
+
+.controls-area {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+.ctrl-btn {
+  background: var(--surface2);
+  color: #fff;
+  border: 1px solid #4a5a8f;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.ctrl-btn:hover {
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+
+.ctrl-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-style: italic;
+  flex-basis: 100%;
+}
+
+.small-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: #1a2a3a;
+  flex-shrink: 0;
+  position: absolute;
+  top: 6px;
+  right: 10px;
+}
+
+/* ---- GAME OVER OVERLAY ---- */
+#game-over-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+#game-over-box {
+  background: var(--surface);
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  padding: 40px 60px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 0 40px rgba(241,196,15,0.3);
+}
+
+#game-over-msg {
+  font-size: 32px;
+  font-weight: bold;
+  color: var(--gold);
+}
+
+/* ---- SCROLLBAR ---- */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #0d1b2a; }
+::-webkit-scrollbar-thumb { background: #2a4a7f; border-radius: 2px; }
+
+/* ============================================================
+   PHASE BAR
+   ============================================================ */
+.phase-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.turn-counter {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--gold);
+  white-space: nowrap;
+  min-width: 54px;
+  background: rgba(241,196,15,0.1);
+  border: 1px solid rgba(241,196,15,0.3);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.active-player-badge {
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  background: var(--surface2);
+  border: 1px solid #4a5a8f;
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.phase-steps {
+  display: flex;
+  flex-direction: row;
+  gap: 3px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.phase-step {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #0d1b2a;
+  color: #3a5a7a;
+  border: 1px solid #1a3050;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.phase-step-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: bold;
+  box-shadow: 0 0 8px rgba(233,69,96,0.5);
+}
+
+/* ============================================================
+   INCOMING DAMAGE BADGE on creature card
+   ============================================================ */
+.incoming-dmg {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 4px;
+  padding: 1px 5px;
+  animation: pulse 0.8s infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  from { opacity: 0.8; transform: scale(1); }
+  to   { opacity: 1;   transform: scale(1.08); }
+}
+
+/* ============================================================
+   BOARD SLOT — make creature-card position:relative for badge
+   ============================================================ */
+.creature-card {
+  position: relative;
+}
+
+/* ============================================================
+   CLICKABLE STATES on board slots
+   ============================================================ */
+.card-slot.can-attack {
+  cursor: pointer;
+  border-color: var(--attacking) !important;
+  box-shadow: 0 0 8px rgba(255,107,53,0.4);
+}
+
+.card-slot.can-attack:hover {
+  background: rgba(255,107,53,0.12);
+}
+
+/* can-block highlight on hand cards */
+.hand-card.can-block {
+  outline: 2px solid #7ec8e3;
+  outline-offset: 2px;
+}
+
+.hand-card.can-block:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 24px rgba(126,200,227,0.4);
+}
+
+/* ============================================================
+   SKIP BUTTON STYLE
+   ============================================================ */
+.skip-btn {
+  background: #1a2a3a !important;
+  color: var(--text-dim) !important;
+  border-color: #2a3a5a !important;
+  font-size: 11px;
+}
+
+.skip-btn:hover {
+  background: #2a3a4a !important;
+  color: var(--text) !important;
+  transform: none !important;
+}
+
+/* ============================================================
+   MIDDLE STRIP — flex-col to stack phase-bar above controls
+   ============================================================ */
+
+/* ============================================================
+   SUMMONING SICKNESS
+   ============================================================ */
+.card-slot.summoning-sick {
+  border-color: #4a3a1a !important;
+}
+
+.creature-card.sick {
+  filter: sepia(0.5);
+}
+
+.sick-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  background: rgba(241,196,15,0.85);
+  color: #1a1a00;
+  font-size: 8px;
+  font-weight: bold;
+  border-radius: 3px;
+  padding: 1px 4px;
+  pointer-events: none;
+  white-space: nowrap;
+}

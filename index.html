@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Duel Card Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="game-over-overlay" style="display:none;">
+  <div id="game-over-box">
+    <div id="game-over-msg">Game Over</div>
+    <button id="new-game-btn" class="ctrl-btn">🔄 New Game</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="main-layout">
+
+    <!-- ===== GAME AREA ===== -->
+    <div id="game-area">
+
+      <!-- P2 (top) -->
+      <div class="player-zone top-zone" id="p2-zone">
+        <div class="side-panel">
+          <div id="top-player-label" class="player-label">Player 2</div>
+          <div class="stat-box"><span class="stat-label">Mana</span><span class="stat-value" id="top-mana">0/0</span></div>
+          <div class="stat-box"><span class="stat-label">Health</span><span class="stat-value hp-val" id="top-hp">30</span></div>
+          <div class="zone-box"><span class="zone-label">Deck</span><span class="zone-count" id="top-deck">30</span></div>
+          <div class="zone-box"><span class="zone-label">Grave</span><span class="zone-count" id="top-grave">0</span></div>
+        </div>
+        <div class="center-panel top-center">
+          <div class="hand-zone" id="top-hand"></div>
+          <div class="board-zone" id="top-board"></div>
+        </div>
+      </div>
+
+      <!-- PHASE BAR + CONTROLS -->
+      <div class="middle-strip">
+        <div id="phase-bar" class="phase-bar"></div>
+        <div id="controls" class="controls-area"></div>
+        <button id="restart-btn" class="ctrl-btn small-btn">↺ Restart</button>
+      </div>
+
+      <!-- P1 (bottom) -->
+      <div class="player-zone bot-zone" id="p1-zone">
+        <div class="side-panel">
+          <div id="bot-player-label" class="player-label">Player 1</div>
+          <div class="stat-box"><span class="stat-label">Mana</span><span class="stat-value" id="bot-mana">0/0</span></div>
+          <div class="stat-box"><span class="stat-label">Health</span><span class="stat-value hp-val" id="bot-hp">30</span></div>
+          <div class="zone-box"><span class="zone-label">Deck</span><span class="zone-count" id="bot-deck">30</span></div>
+          <div class="zone-box"><span class="zone-label">Grave</span><span class="zone-count" id="bot-grave">0</span></div>
+        </div>
+        <div class="center-panel bot-center">
+          <div class="board-zone" id="bot-board"></div>
+          <div class="hand-zone" id="bot-hand"></div>
+        </div>
+      </div>
+
+    </div><!-- /game-area -->
+
+    <!-- ===== RIGHT LOG ===== -->
+    <div id="log-column">
+      <div class="log-title">Event Log</div>
+      <div id="log" class="log-area"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
