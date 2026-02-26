@@ -71,20 +71,10 @@ function buildDeck() {
     pool.push({ ...c, uid: uid() });
     pool.push({ ...c, uid: uid() });
   });
-  // Add 5 extra random action cards
-  for (let i = 0; i < 5; i++) {
-    const c = actions[Math.floor(Math.random() * actions.length)];
-    pool.push({ ...c, uid: uid() });
-  }
 
-  // Add 5 extra random action cards
-  for (let i = 0; i < 5; i++) {
-    const c = actions[Math.floor(Math.random() * actions.length)];
-    pool.push({ ...c, uid: uid() });
-  }
-
-  // Target: 45 cards total (42 in deck + 3 drawn as starting hand)
-  const TARGET = 45;
+  // Target: 40 cards total (37 in deck + 3 drawn as starting hand)
+  // Pad with extra cheap creature copies if under target
+  const TARGET = 40;
   const cheap = creatures.filter(c => c.cost <= 3);
   while (pool.length < TARGET) {
     const c = cheap[Math.floor(Math.random() * cheap.length)];
@@ -147,7 +137,7 @@ function drawCard(pid, silent = false) {
   if (p.deck.length === 0) { triggerLoss(pid, 'deck empty'); return null; }
   const card = p.deck.shift();
   p.hand.push(card);
-  if (!silent) log(`🃏 ${pLabel(pid)} draws ${card.name} (${G[pid].deck.length} left in deck)`);
+  if (!silent) log(`🃏 ${pLabel(pid)} draws ${card.name}`);
   return card;
 }
 
@@ -168,7 +158,7 @@ function checkDeath() {
     const p = G.players[pid];
     const dead = p.board.filter(c => c.healthCurrent <= 0);
     dead.forEach(c => {
-      log(`💀 ${c.name} dies (HP ${c.healthCurrent}/${c.healthMax})`);
+      log(`💀 ${c.name} dies`);
       p.board = p.board.filter(x => x.uid !== c.uid);
       p.graveyard.push(c);
       resolveAbility(c, 'on_death', pid);
@@ -359,9 +349,7 @@ function doMaintenance() {
   if (p.turnCount > 1) p.manaAvailable = Math.min(p.manaAvailable + 2, MAX_MANA);
   p.manaCurrent = p.manaAvailable;
 
-  log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  log(`⚔ TURN ${G.globalTurn} — ${pLabel(G.activePlayer).toUpperCase()}`);
-  log(`💎 Mana: ${p.manaCurrent}/${p.manaAvailable}  ♥ HP: ${p.hp}`);
+  log(`━━ Turn ${G.globalTurn} · ${pLabel(G.activePlayer)} · Mana ${p.manaCurrent} ━━`);
   G.state = STATE.PLAY_CREATURES;
   renderAll();
 }
@@ -389,7 +377,7 @@ function playCreature(handCardUid) {
     _preventDmg:      0
   };
   p.board.push(instance);
-  log(`🐾 ${pLabel(G.activePlayer)} summons ${card.name} [⚔${card.attack} 🛡${card.block} ♥${card.healthMax}] for 💎${card.cost}`);
+  log(`▶ ${pLabel(G.activePlayer)} plays ${card.name} (summoning sickness)`);
   resolveAbility(instance, 'on_play', G.activePlayer);
   renderAll();
 }
@@ -413,7 +401,8 @@ function playPreActionCard(handCardUid) {
 
   p.manaCurrent -= card.cost;
   p.hand.splice(idx, 1);
-  log(`🃏 ${pLabel(G.activePlayer)} plays [PRE-COMBAT] ${card.name} for 💎${card.cost}`);
+  log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
+  // Resolve immediately (no attacker context yet)
   resolveAbility({ ...card }, 'on_resolve', G.activePlayer);
   p.graveyard.push(card);
   renderAll();
@@ -440,7 +429,7 @@ function selectAttacker(creatureUid) {
   G.combat.target         = null;
   G.combat.blockCard      = null;
   G.state = STATE.COMBAT_ATTACK_ACTIONS;
-  log(`⚔ ${pLabel(G.activePlayer)} sends ${creature.name} [⚔${creature.attack} ♥${creature.healthCurrent}/${creature.healthMax}] to attack`);
+  log(`⚔ ${pLabel(G.activePlayer)} declares ${creature.name} as attacker`);
   renderAll();
 }
 
@@ -457,7 +446,7 @@ function playActionCard(handCardUid) {
   p.manaCurrent -= card.cost;
   p.hand.splice(idx, 1);
   G.combat.pendingActions.push(card);
-  log(`🃏 ${pLabel(G.activePlayer)} plays ${card.name} for 💎${card.cost}`);
+  log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
   renderAll();
 }
 
@@ -514,9 +503,7 @@ function selectTarget(targetUid) {
   }
 
   G.state = STATE.COMBAT_BLOCK;
-  const attacker = active().board.find(c => c.uid === G.combat.attacker);
-  const targetName = G.combat.target === 'player' ? pLabel(defenderKey()) : (defender().board.find(c => c.uid === G.combat.target)?.name || '?');
-  log(`🗡 ${attacker?.name || '?'} [⚔${attacker?.attack}] attacks ${targetName} — ${pLabel(defenderKey())} may block`);
+  log(`🛡 ${pLabel(defenderKey())} may block`);
   renderAll();
 }
 
@@ -532,14 +519,14 @@ function playBlockCard(handCardUid) {
   def.hand.splice(idx, 1);
   def.graveyard.push(card);
   G.combat.blockCard = card;
-  log(`🛡 ${pLabel(defenderKey())} blocks with ${card.name} (🛡${card.block} absorbs damage)`);
+  log(`🛡 ${pLabel(defenderKey())} blocks with ${card.name} (block ${card.block})`);
   resolveCombat();
 }
 
 function skipBlock() {
   if (G.state !== STATE.COMBAT_BLOCK) return;
   G.combat.blockCard = null;
-  log(`🚫 ${pLabel(defenderKey())} does not block`);
+  log(`${pLabel(defenderKey())} does not block`);
   resolveCombat();
 }
 
@@ -557,27 +544,28 @@ function resolveCombat() {
   const damage = Math.max(0, attCard.attack - blockVal);
 
   if (blockVal > 0) {
-    const absorbed = Math.min(blockVal, attCard.attack);
-    log(`🛡 Block: ${absorbed} absorbed → ${damage} gets through`);
+    log(`🛡 Block absorbs ${Math.min(blockVal, attCard.attack)} of ${attCard.attack} → ${damage} gets through`);
   }
 
   if (G.combat.target === 'player') {
     def.hp -= damage;
-    log(`💥 ${attCard.name} hits ${pLabel(dKey)} for ${damage} dmg → HP ${def.hp}/30`);
+    log(`💥 ${damage} damage to ${pLabel(dKey)} → HP ${def.hp}`);
   } else {
     const target = def.board.find(c => c.uid === G.combat.target);
     if (target) {
+      // Attacker → Target
       const prevent   = target._preventDmg || 0;
       const actualDmg = Math.max(0, damage - prevent);
       target._preventDmg    = 0;
       target.healthCurrent -= actualDmg;
-      log(`💥 ${attCard.name} [⚔${attCard.attack}] → ${target.name}: ${actualDmg} dmg → HP ${target.healthCurrent}/${target.healthMax}`);
+      log(`💥 ${attCard.name} deals ${actualDmg} to ${target.name} → HP ${target.healthCurrent}/${target.healthMax}`);
       if (actualDmg > 0) resolveAbility(target, 'on_damage', dKey);
 
+      // Counterattack — only untapped (non-exhausted) creatures fight back
       if (!target.tapped) {
         const counterDmg = target.attack;
         attCard.healthCurrent -= counterDmg;
-        log(`↩ ${target.name} [⚔${counterDmg}] counterattacks → ${attCard.name} HP ${attCard.healthCurrent}/${attCard.healthMax}`);
+        log(`⚡ ${target.name} counterattacks for ${counterDmg} → ${attCard.name} HP ${attCard.healthCurrent}/${attCard.healthMax}`);
         if (counterDmg > 0) resolveAbility(attCard, 'on_damage', G.activePlayer);
       } else {
         log(`💤 ${target.name} is tapped — no counterattack`);
@@ -614,7 +602,7 @@ function doEndTurn() {
     log(`🗑 ${pLabel(G.activePlayer)} discards ${disc.name}`);
   }
 
-  log(`⏭ ${pLabel(G.activePlayer)} ends turn (💎${p.manaCurrent} mana left, ♥${p.hp} HP)`);
+  log(`⏭ ${pLabel(G.activePlayer)} ends turn`);
   G.activePlayer = G.activePlayer === 'p1' ? 'p2' : 'p1';
   doMaintenance();
 }
@@ -1017,17 +1005,7 @@ function renderPhaseBar() {
 // ---- LOG ----
 function renderLog() {
   const el = document.getElementById('log');
-  el.innerHTML = G.log.map(l => {
-    let cls = 'log-entry';
-    if (l.startsWith('━'))        cls += ' log-divider';
-    else if (l.startsWith('⚔ TURN')) cls += ' log-turn';
-    else if (l.startsWith('💥') || l.startsWith('↩')) cls += ' log-damage';
-    else if (l.startsWith('💀'))   cls += ' log-death';
-    else if (l.startsWith('💚') || l.startsWith('🩸')) cls += ' log-heal';
-    else if (l.startsWith('🛡'))   cls += ' log-block';
-    else if (l.startsWith('🃏') || l.startsWith('🐾')) cls += ' log-play';
-    return `<div class="${cls}">${l}</div>`;
-  }).join('');
+  el.innerHTML = G.log.map(l => `<div class="log-entry">${l}</div>`).join('');
 }
 
 // ---- GAME OVER ----
