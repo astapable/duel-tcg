@@ -367,6 +367,21 @@ function selectEnemyCreature(creatureUid) {
   else renderAll();
 }
 
+// Discard a creature with on_discard ability from hand for its effect (usable during PLAY_CREATURES)
+function discardForEffect(cardUid) {
+  if (G.state !== STATE.PLAY_CREATURES) return;
+  const p = active();
+  const idx = p.hand.findIndex(c => c.uid === cardUid);
+  if (idx === -1) return;
+  const card = p.hand[idx];
+  if (!card.ability || card.ability.trigger !== 'on_discard') return;
+  p.hand.splice(idx, 1);
+  p.graveyard.push(card);
+  log(`🗑 ${pLabel(G.activePlayer)} discards ${card.name}`);
+  resolveAbility({ ...card }, 'on_discard', G.activePlayer);
+  renderAll();
+}
+
 // ============================================================
 // PHASE LOGIC
 // ============================================================
@@ -821,6 +836,18 @@ function renderPlayer(pid, isTop) {
     }
 
     if (clickable) { cardEl.classList.add('clickable'); cardEl.onclick = clickFn; }
+
+    // Discard button for on_discard creatures (usable during PLAY_CREATURES)
+    if (isActive && G.state === STATE.PLAY_CREATURES
+        && card.ability && card.ability.trigger === 'on_discard') {
+      const discardBtn = document.createElement('button');
+      discardBtn.className = 'discard-ability-btn';
+      discardBtn.textContent = `🗑 +${card.ability.value}💎`;
+      discardBtn.title = `Discard ${card.name} to gain ${card.ability.value} mana`;
+      discardBtn.onclick = e => { e.stopPropagation(); discardForEffect(card.uid); };
+      cardEl.appendChild(discardBtn);
+    }
+
     handEl.appendChild(cardEl);
   });
 }

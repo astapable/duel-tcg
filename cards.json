@@ -264,10 +264,10 @@
     "block": 2,
     "healthMax": 5,
     "ability": {
-      "trigger": "on_play",
-      "effect": "deal_damage",
-      "value": 2,
-      "target": "enemy_player"
+      "trigger": "on_discard",
+      "effect": "gain_mana",
+      "value": 1,
+      "target": "self"
     },
     "art": "art/Bone Colossus.jpg"
   },

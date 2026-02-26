@@ -739,6 +739,26 @@ body {
   filter: drop-shadow(0 0 5px rgba(126,200,227,0.5));
 }
 
+/* discard-for-effect button overlaid on hand card */
+.discard-ability-btn {
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  background: rgba(248, 193, 2, 0.92);
+  color: #1a1100;
+  border: 1px solid #a07800;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10;
+  line-height: 1.3;
+}
+.discard-ability-btn:hover {
+  background: rgba(255, 220, 0, 1);
+}
+
 /* ============================================================
    SKIP BUTTON STYLE
    ============================================================ */
