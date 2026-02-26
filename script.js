@@ -16,6 +16,7 @@ const MAX_MANA    = 10;
 const STATE = {
   MAINTENANCE:            'MAINTENANCE',
   PLAY_CREATURES:         'PLAY_CREATURES',
+  COMBAT_PRE_ACTIONS:     'COMBAT_PRE_ACTIONS',     // NEW: play actions before declaring attacker
   COMBAT_SELECT_ATTACKER: 'COMBAT_SELECT_ATTACKER',
   COMBAT_ATTACK_ACTIONS:  'COMBAT_ATTACK_ACTIONS',
   COMBAT_APPLY_ACTIONS:   'COMBAT_APPLY_ACTIONS',
@@ -56,8 +57,33 @@ async function loadCards() {
 }
 
 function buildDeck() {
-  const pool = [...CARD_DB.filter(c => c.type === 'creature'), ...CARD_DB.filter(c => c.type === 'action')];
-  return shuffle(pool).map(card => ({ ...card, uid: uid() }));
+  const creatures = CARD_DB.filter(c => c.type === 'creature');
+  const actions   = CARD_DB.filter(c => c.type === 'action');
+
+  let pool = [];
+  // Cheap creatures (cost 1-3): 2 copies each
+  creatures.forEach(c => {
+    pool.push({ ...c, uid: uid() });
+    if (c.cost <= 3) pool.push({ ...c, uid: uid() });
+  });
+  // Actions: 2 copies each
+  actions.forEach(c => {
+    pool.push({ ...c, uid: uid() });
+    pool.push({ ...c, uid: uid() });
+  });
+
+  // Target: 40 cards total (37 in deck + 3 drawn as starting hand)
+  // Pad with extra cheap creature copies if under target
+  const TARGET = 40;
+  const cheap = creatures.filter(c => c.cost <= 3);
+  while (pool.length < TARGET) {
+    const c = cheap[Math.floor(Math.random() * cheap.length)];
+    pool.push({ ...c, uid: uid() });
+  }
+  // Trim if somehow over
+  pool = pool.slice(0, TARGET);
+
+  return shuffle(pool);
 }
 
 function makePlayer(id, isP1) {
@@ -90,7 +116,8 @@ function initGame() {
     log:    [],
     winner: null
   };
-  for (let i = 0; i < 4; i++) { drawCard('p1', true); drawCard('p2', true); }
+  // Starting hand: 3 cards each
+  for (let i = 0; i < 3; i++) { drawCard('p1', true); drawCard('p2', true); }
   doMaintenance();
 }
 
@@ -172,8 +199,20 @@ function resolveAbility(card, trigger, ownerPid) {
         owner.hp = Math.min(owner.hp + ab.value, STARTING_HP);
         log(`💚 ${pLabel(ownerPid)} heals ${ab.value} → HP ${owner.hp}`);
       } else if (ab.target === 'ally_creature') {
-        const src = owner.board.find(c => c.uid === card.uid);
-        if (src) { src.healthCurrent = Math.min(src.healthCurrent + ab.value, src.healthMax); log(`💚 ${src.name} heals ${ab.value}`); }
+        // For creature abilities: heal self. For action cards: heal most damaged ally.
+        const onBoard = owner.board.find(c => c.uid === card.uid);
+        if (onBoard) {
+          onBoard.healthCurrent = Math.min(onBoard.healthCurrent + ab.value, onBoard.healthMax);
+          log(`💚 ${onBoard.name} heals ${ab.value} → HP ${onBoard.healthCurrent}`);
+        } else {
+          // Action card — heal most damaged ally creature
+          const allies = [...owner.board].sort((a, b) => (a.healthMax - a.healthCurrent) - (b.healthMax - b.healthCurrent));
+          const most = allies[allies.length - 1];
+          if (most) {
+            most.healthCurrent = Math.min(most.healthCurrent + ab.value, most.healthMax);
+            log(`💚 ${most.name} heals ${ab.value} → HP ${most.healthCurrent}`);
+          }
+        }
       }
       break;
     case 'draw':
@@ -198,6 +237,87 @@ function resolveAbility(card, trigger, ownerPid) {
       card._preventDmg += ab.value;
       log(`🛡 ${card.name} will prevent ${ab.value} dmg`);
       break;
+
+    case 'rush': {
+      // Remove summoning sickness from self (on_play) or a random ally creature (action)
+      if (ab.target === 'self') {
+        const self = owner.board.find(c => c.uid === card.uid);
+        if (self) { self.summonedThisTurn = false; log(`⚡ ${self.name} has Rush — can attack immediately!`); }
+      } else if (ab.target === 'ally_creature') {
+        // Action card: grant rush to the most recently summoned sick ally
+        const sick = owner.board.filter(c => c.summonedThisTurn);
+        if (sick.length > 0) {
+          const t = sick[sick.length - 1];
+          t.summonedThisTurn = false;
+          log(`⚡ ${t.name} granted Rush — can attack immediately!`);
+        } else {
+          // No sick creatures — grant rush to a random untapped ally instead
+          const untapped = owner.board.filter(c => !c.tapped);
+          if (untapped.length > 0) {
+            const t = untapped[Math.floor(Math.random() * untapped.length)];
+            t.summonedThisTurn = false;
+            log(`⚡ ${t.name} granted Rush`);
+          }
+        }
+      }
+      break;
+    }
+
+    case 'tap_enemy': {
+      // Force tap a random enemy creature (or specific target during combat)
+      const pool = (ab.target === 'enemy_creature' && G.combat.target && G.combat.target !== 'player')
+        ? enemy.board.filter(c => c.uid === G.combat.target)
+        : enemy.board.filter(c => !c.tapped);
+      if (pool.length > 0) {
+        const t = pool[Math.floor(Math.random() * pool.length)];
+        t.tapped = true;
+        log(`🌀 ${t.name} is tapped by ${card.name}!`);
+      }
+      break;
+    }
+
+    case 'gain_mana':
+      owner.manaCurrent = Math.min(owner.manaCurrent + ab.value, MAX_MANA);
+      log(`💎 ${pLabel(ownerPid)} gains ${ab.value} mana → ${owner.manaCurrent}/${owner.manaAvailable}`);
+      break;
+
+    case 'damage_and_tap': {
+      // Deal damage to a creature AND tap it
+      const pool = (ab.target === 'enemy_creature' && G.combat.target && G.combat.target !== 'player')
+        ? enemy.board.filter(c => c.uid === G.combat.target)
+        : enemy.board;
+      if (pool.length > 0) {
+        const t = pool[Math.floor(Math.random() * pool.length)];
+        t.healthCurrent -= ab.value;
+        t.tapped = true;
+        log(`🗡 ${card.name}: ${t.name} takes ${ab.value} dmg and is tapped → HP ${t.healthCurrent}`);
+      }
+      break;
+    }
+
+    case 'buff_attack_all': {
+      // Buff ATK of all allied creatures on board
+      if (owner.board.length === 0) { log(`📯 ${card.name}: no allies to buff`); break; }
+      owner.board.forEach(c => { c.attack += ab.value; });
+      log(`📯 ${card.name}: all allies +${ab.value} ATK (${owner.board.map(c => c.name).join(', ')})`);
+      break;
+    }
+
+    case 'buff_health_all': {
+      const alliesH = owner.board.filter(c => c.uid !== card.uid);
+      if (alliesH.length === 0) { log(`💛 ${card.name}: no other allies to buff`); break; }
+      alliesH.forEach(c => { c.healthMax += ab.value; c.healthCurrent += ab.value; });
+      log(`💛 ${card.name}: all allies +${ab.value} HP (${alliesH.map(c => c.name).join(', ')}`);
+      break;
+    }
+
+    case 'drain_life': {
+      // Deal damage to enemy player AND heal self for same amount
+      enemy.hp -= ab.value;
+      owner.hp = Math.min(owner.hp + ab.value, STARTING_HP);
+      log(`🩸 ${card.name}: deals ${ab.value} to ${pLabel(enemyPid)} (HP ${enemy.hp}), heals ${pLabel(ownerPid)} +${ab.value} (HP ${owner.hp})`);
+      break;
+    }
   }
   checkDeath();
 }
@@ -219,8 +339,11 @@ function doMaintenance() {
     c.summonedThisTurn = false;  // clear sickness flag at start of THEIR next turn
   });
 
-  // Draw
-  if (!drawCard(G.activePlayer)) return;
+  // Draw — P1 skips draw on their very first turn
+  const skipFirstDraw = (G.activePlayer === 'p1' && p.turnCount === 1);
+  if (!skipFirstDraw) {
+    if (!drawCard(G.activePlayer)) return;
+  }
 
   // Mana
   if (p.turnCount > 1) p.manaAvailable = Math.min(p.manaAvailable + 2, MAX_MANA);
@@ -259,9 +382,34 @@ function playCreature(handCardUid) {
   renderAll();
 }
 
-// Transition: leave PLAY_CREATURES → enter COMBAT_SELECT_ATTACKER
+// Transition: leave PLAY_CREATURES → enter COMBAT_PRE_ACTIONS
 function enterCombat() {
   if (G.state !== STATE.PLAY_CREATURES) return;
+  G.state = STATE.COMBAT_PRE_ACTIONS;
+  renderAll();
+}
+
+// ── 3.0 PRE-COMBAT ACTIONS (before selecting attacker) ──────
+function playPreActionCard(handCardUid) {
+  if (G.state !== STATE.COMBAT_PRE_ACTIONS) return;
+  const p = active();
+  const idx = p.hand.findIndex(c => c.uid === handCardUid);
+  if (idx === -1) return;
+  const card = p.hand[idx];
+  if (card.type !== 'action') return;
+  if (card.cost > p.manaCurrent) return alert(`Need ${card.cost} mana, have ${p.manaCurrent}`);
+
+  p.manaCurrent -= card.cost;
+  p.hand.splice(idx, 1);
+  log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
+  // Resolve immediately (no attacker context yet)
+  resolveAbility({ ...card }, 'on_resolve', G.activePlayer);
+  p.graveyard.push(card);
+  renderAll();
+}
+
+function skipPreActions() {
+  if (G.state !== STATE.COMBAT_PRE_ACTIONS) return;
   G.state = STATE.COMBAT_SELECT_ATTACKER;
   renderAll();
 }
@@ -343,12 +491,14 @@ function selectTarget(targetUid) {
   const untapped = def.board.filter(c => !c.tapped);
 
   if (targetUid === 'player') {
-    if (untapped.length > 0) return alert('Must attack an untapped creature first');
+    // Can only attack player if no untapped creatures exist (tapped ones don't block)
+    if (untapped.length > 0) return alert('Must attack an untapped creature first (tapped creatures cannot defend)');
     G.combat.target = 'player';
   } else {
     const t = def.board.find(c => c.uid === targetUid);
     if (!t) return;
-    if (t.tapped) return alert('Cannot attack tapped (exhausted) creature');
+    // Untapped creatures must be attacked before tapped ones
+    if (t.tapped && untapped.length > 0) return alert('Must attack untapped creatures first');
     G.combat.target = targetUid;
   }
 
@@ -390,12 +540,12 @@ function resolveCombat() {
   const def      = defender();
   const dKey     = defenderKey();
 
-  if (blockVal > attCard.attack) {
-    log(`💀 ${attCard.name} destroyed by block!`);
-    attCard.healthCurrent = 0;
-  }
-
+  // Block reduces outgoing damage but doesn't kill attacker
   const damage = Math.max(0, attCard.attack - blockVal);
+
+  if (blockVal > 0) {
+    log(`🛡 Block absorbs ${Math.min(blockVal, attCard.attack)} of ${attCard.attack} → ${damage} gets through`);
+  }
 
   if (G.combat.target === 'player') {
     def.hp -= damage;
@@ -403,12 +553,23 @@ function resolveCombat() {
   } else {
     const target = def.board.find(c => c.uid === G.combat.target);
     if (target) {
+      // Attacker → Target
       const prevent   = target._preventDmg || 0;
       const actualDmg = Math.max(0, damage - prevent);
       target._preventDmg    = 0;
       target.healthCurrent -= actualDmg;
-      log(`💥 ${attCard.name} deals ${actualDmg} to ${target.name} → HP ${target.healthCurrent}`);
+      log(`💥 ${attCard.name} deals ${actualDmg} to ${target.name} → HP ${target.healthCurrent}/${target.healthMax}`);
       if (actualDmg > 0) resolveAbility(target, 'on_damage', dKey);
+
+      // Counterattack — only untapped (non-exhausted) creatures fight back
+      if (!target.tapped) {
+        const counterDmg = target.attack;
+        attCard.healthCurrent -= counterDmg;
+        log(`⚡ ${target.name} counterattacks for ${counterDmg} → ${attCard.name} HP ${attCard.healthCurrent}/${attCard.healthMax}`);
+        if (counterDmg > 0) resolveAbility(attCard, 'on_damage', G.activePlayer);
+      } else {
+        log(`💤 ${target.name} is tapped — no counterattack`);
+      }
     }
   }
 
@@ -427,12 +588,12 @@ function afterCombat() {
 
 // ── 4. END TURN ─────────────────────────────────────────────
 function doEndTurn() {
-  if (![STATE.PLAY_CREATURES, STATE.COMBAT_SELECT_ATTACKER].includes(G.state)) return;
+  if (![STATE.PLAY_CREATURES, STATE.COMBAT_PRE_ACTIONS, STATE.COMBAT_SELECT_ATTACKER].includes(G.state)) return;
   G.state = STATE.END_TURN;
   const p = active();
 
-  // Reset creature HP (damage doesn't carry over)
-  p.board.forEach(c => { c.healthCurrent = c.healthMax; c._preventDmg = 0; });
+  // NOTE: creature HP is NOT reset — damage accumulates between turns
+  p.board.forEach(c => { c._preventDmg = 0; });
 
   // Discard to hand limit
   while (p.hand.length > MAX_HAND) {
@@ -462,6 +623,7 @@ function renderPlayer(pid, isTop) {
   const prefix       = isTop ? 'top' : 'bot';
   const isActive     = G.activePlayer === pid;
   const isDefending  = !isActive;
+  const def          = G.players[isActive ? defenderKey() : G.activePlayer];
 
   // Stats
   document.getElementById(`${prefix}-hp`).textContent    = p.hp;
@@ -494,17 +656,19 @@ function renderPlayer(pid, isTop) {
         && !c.summonedThisTurn
         && G.state === STATE.COMBAT_SELECT_ATTACKER;
 
-      // Can be clicked as target?
+      // Can be clicked as target? Tapped creatures can be attacked only when no untapped exist
+      const untappedDefenders = def.board.filter(c => !c.tapped);
       const canBeTarget = isDefending
-        && !c.tapped
-        && G.state === STATE.COMBAT_SELECT_TARGET;
+        && G.state === STATE.COMBAT_SELECT_TARGET
+        && (!c.tapped || untappedDefenders.length === 0);
 
       slot.classList.add('filled');
       if (c.tapped)           slot.classList.add('tapped-slot');
       if (canBeAttacker)      { slot.classList.add('can-attack'); slot.onclick = () => selectAttacker(c.uid); slot.title = `Attack with ${c.name}`; }
-      if (canBeTarget)        { slot.classList.add('targetable');  slot.onclick = () => selectTarget(c.uid);  slot.title = `Attack ${c.name}`; }
-      if (isDefending && c.tapped && G.state === STATE.COMBAT_SELECT_TARGET) {
-        slot.title = `${c.name} is tapped — cannot be attacked`;
+      if (canBeTarget)        { slot.classList.add('targetable');  slot.onclick = () => selectTarget(c.uid);
+        slot.title = c.tapped ? `Attack ${c.name} (tapped — no counterattack)` : `Attack ${c.name} (will counterattack!)`; }
+      if (isDefending && !canBeTarget && G.state === STATE.COMBAT_SELECT_TARGET && c.tapped) {
+        slot.title = `${c.name} is tapped — attack untapped creatures first`;
       }
       if (c.summonedThisTurn && isActive) slot.classList.add('summoning-sick');
 
@@ -542,6 +706,13 @@ function renderPlayer(pid, isTop) {
       clickable = true; clickFn = () => playCreature(card.uid);
       cardEl.title = 'Summon this creature';
     }
+    // Play action before selecting attacker (PRE_ACTIONS)
+    if (isActive && G.state === STATE.COMBAT_PRE_ACTIONS
+        && card.type === 'action'
+        && card.cost <= p.manaCurrent) {
+      clickable = true; clickFn = () => playPreActionCard(card.uid);
+      cardEl.title = 'Play action before combat';
+    }
     // Play action during COMBAT_ATTACK_ACTIONS
     if (isActive && G.state === STATE.COMBAT_ATTACK_ACTIONS
         && card.type === 'action'
@@ -571,11 +742,24 @@ function renderCreatureCard(c, isAttacking, isTarget, incomingDmg) {
     c.summonedThisTurn  ? 'sick'      : ''
   ].filter(Boolean).join(' ');
 
-  const dmgBadge = incomingDmg > 0
+  const dmgBadge  = incomingDmg > 0
     ? `<div class="incoming-dmg">💥 -${incomingDmg}</div>` : '';
-
   const sickBadge = c.summonedThisTurn
     ? `<div class="sick-badge">⏳ summoned</div>` : '';
+
+  let abilityText = '';
+  if (c.ability) {
+    const e = c.ability.effect;
+    const t = c.ability.trigger;
+    const v = c.ability.value;
+    if (e === 'rush')            abilityText = `⚡ Rush`;
+    else if (e === 'tap_enemy')       abilityText = `${t}: 🌀 Tap enemy`;
+    else if (e === 'damage_and_tap')  abilityText = `${t}: 🗡 ${v} dmg + tap`;
+    else if (e === 'buff_attack_all') abilityText = `${t}: 📯 All allies +${v} ATK`;
+    else if (e === 'buff_health_all') abilityText = `${t}: 💛 All allies +${v} HP`;
+    else if (e === 'drain_life')      abilityText = `${t}: 🩸 Drain ${v}`;
+    else                              abilityText = `${t}: ${e} ${v}`;
+  }
 
   return `
     <div class="${classes}">
@@ -586,7 +770,7 @@ function renderCreatureCard(c, isAttacking, isTarget, incomingDmg) {
         <span class="hp-bar">${c.healthCurrent}/${c.healthMax} ♥</span>
         <span class="blk">🛡 ${c.block}</span>
       </div>
-      ${c.ability ? `<div class="card-ability">${c.ability.trigger}: ${c.ability.effect}</div>` : ''}
+      ${abilityText ? `<div class="card-ability">${abilityText}</div>` : ''}
       ${sickBadge}
       ${dmgBadge}
     </div>`;
@@ -594,6 +778,31 @@ function renderCreatureCard(c, isAttacking, isTarget, incomingDmg) {
 
 // ---- HAND CARD ----
 function renderHandCard(card) {
+  function abilityDesc(ab) {
+    if (!ab) return '—';
+    const { effect, trigger, value, target } = ab;
+    if (effect === 'rush')            return '⚡ Rush (attack immediately)';
+    if (effect === 'tap_enemy')       return `${trigger}: 🌀 Tap enemy creature`;
+    if (effect === 'gain_mana')       return `Discard → +${value} mana`;
+    if (effect === 'damage_and_tap')  return `${trigger}: 🗡 Deal ${value} dmg + tap enemy`;
+    if (effect === 'buff_attack_all') return `${trigger}: 📯 All allies +${value} ATK`;
+    if (effect === 'buff_health_all') return `${trigger}: 💛 All allies +${value} HP`;
+    if (effect === 'drain_life')      return `${trigger}: 🩸 Drain ${value} from player`;
+    if (effect === 'deal_damage') {
+      const tLabel = target === 'enemy_player' ? 'player' : target === 'ally_creature' ? 'ally' : 'creature';
+      return `${trigger}: deal ${value} dmg to ${tLabel}`;
+    }
+    if (effect === 'heal') {
+      const tLabel = target === 'self' ? 'player' : 'creature';
+      return `${trigger}: heal ${value} to ${tLabel}`;
+    }
+    if (effect === 'draw')        return `${trigger}: draw ${value}`;
+    if (effect === 'buff_attack') return `${trigger}: +${value} ATK`;
+    if (effect === 'buff_health') return `${trigger}: +${value} HP`;
+    if (effect === 'prevent_damage') return `${trigger}: prevent ${value} dmg`;
+    return `${trigger}: ${effect} ${value}`;
+  }
+
   if (card.type === 'creature') {
     return `<div class="card-inner creature-type">
       <div class="card-type-badge">Creature</div>
@@ -604,9 +813,26 @@ function renderHandCard(card) {
         <span class="blk">🛡 ${card.block}</span>
         <span class="hp-bar">♥ ${card.healthMax}</span>
       </div>
-      ${card.ability ? `<div class="card-ability">${card.ability.trigger}: ${card.ability.effect} ${card.ability.value}</div>` : '<div class="card-ability">—</div>'}
+      <div class="card-ability">${abilityDesc(card.ability)}</div>
     </div>`;
   }
+
+  // Action
+  const effectLabel = {
+    deal_damage:     `💥 Deal ${card.ability.value} dmg to ${card.ability.target === 'enemy_player' ? 'player' : 'creature'}`,
+    heal:            `💚 Heal ${card.ability.value} to ${card.ability.target === 'self' ? 'player' : 'creature'}`,
+    draw:            `🃏 Draw ${card.ability.value} cards`,
+    rush:            `⚡ Grant Rush to a creature`,
+    gain_mana:       `💎 Discard → +${card.ability.value} mana`,
+    tap_enemy:       `🌀 Tap an enemy creature`,
+    buff_attack:     `⬆ +${card.ability.value} ATK`,
+    prevent_damage:  `🛡 Prevent ${card.ability.value} damage`,
+    damage_and_tap:  `🗡 Deal ${card.ability.value} dmg + tap enemy creature`,
+    buff_attack_all: `📯 All allies +${card.ability.value} ATK`,
+    buff_health_all: `💛 All allies +${card.ability.value} HP`,
+    drain_life:      `🩸 Deal ${card.ability.value} dmg to player, heal self ${card.ability.value}`,
+  }[card.ability.effect] || `${card.ability.effect} ${card.ability.value}`;
+
   return `<div class="card-inner action-type">
     <div class="card-type-badge">Action</div>
     <div class="card-name">${card.name}</div>
@@ -614,7 +840,7 @@ function renderHandCard(card) {
     <div class="card-stats">
       ${card.block ? `<span class="blk">🛡 ${card.block}</span>` : '<span class="blk">🛡 —</span>'}
     </div>
-    <div class="card-ability">${card.ability.effect} ${card.ability.value} → ${card.ability.target}</div>
+    <div class="card-ability">${effectLabel}</div>
   </div>`;
 }
 
@@ -636,6 +862,14 @@ function renderControls() {
       btn(ctrl, `⚔ Enter Combat`, enterCombat);
       skipBtn(ctrl, `⏭ Skip to End Turn`, doEndTurn);
       break;
+
+    case STATE.COMBAT_PRE_ACTIONS: {
+      const hasActions = active().hand.some(c => c.type === 'action' && c.cost <= active().manaCurrent);
+      hint(ctrl, `3.0 · Play action cards before declaring attacker${hasActions ? ' (click action in hand)' : ' — no actions available'}`);
+      btn(ctrl, `➡ Select Attacker`, skipPreActions);
+      skipBtn(ctrl, `⏭ End Turn`, doEndTurn);
+      break;
+    }
 
     case STATE.COMBAT_SELECT_ATTACKER:
       if (canAttack.length > 0) {
@@ -659,14 +893,20 @@ function renderControls() {
       hint(ctrl, `3.4 · Applying action results…`);
       break;
 
-    case STATE.COMBAT_SELECT_TARGET:
-      if (untappedDef.length === 0) {
-        hint(ctrl, `3.5 · No untapped defenders — attack player directly`);
-        btn(ctrl,  `⚔ Attack ${pLabel(defenderKey())}`, () => selectTarget('player'));
+    case STATE.COMBAT_SELECT_TARGET: {
+      const untappedDef = def.board.filter(c => !c.tapped);
+      const tappedDef   = def.board.filter(c => c.tapped);
+      if (def.board.length === 0) {
+        hint(ctrl, `3.5 · No defenders — attack player directly`);
+        btn(ctrl, `⚔ Attack ${pLabel(defenderKey())}`, () => selectTarget('player'));
+      } else if (untappedDef.length === 0 && tappedDef.length > 0) {
+        hint(ctrl, `3.5 · All defenders are tapped (no counterattack) — or attack player`);
+        btn(ctrl, `⚔ Attack ${pLabel(defenderKey())}`, () => selectTarget('player'));
       } else {
-        hint(ctrl, `3.5 · Click a defender creature to attack it (${untappedDef.length} untapped)`);
+        hint(ctrl, `3.5 · Untapped creatures counterattack! Tapped ones don't. Choose wisely.`);
       }
       break;
+    }
 
     case STATE.COMBAT_BLOCK: {
       const attk = attCard ? attCard.attack : 0;
@@ -708,6 +948,7 @@ function hint(parent, text) {
 const PHASE_STEPS = [
   { key: STATE.MAINTENANCE,            label: '1 · Maintenance' },
   { key: STATE.PLAY_CREATURES,         label: '2 · Play / Summon' },
+  { key: STATE.COMBAT_PRE_ACTIONS,     label: '3.0 · Pre-Combat Actions' },
   { key: STATE.COMBAT_SELECT_ATTACKER, label: '3.1 · Select Attacker' },
   { key: STATE.COMBAT_ATTACK_ACTIONS,  label: '3.2 · Attack Actions' },
   { key: STATE.COMBAT_APPLY_ACTIONS,   label: '3.4 · Apply Actions' },
@@ -754,6 +995,69 @@ function showGameOver() {
   document.getElementById('game-over-overlay').style.display = 'flex';
   document.getElementById('game-over-msg').textContent = `🏆 ${pLabel(G.winner)} Wins!`;
 }
+
+// ============================================================
+// CARD PREVIEW — follows mouse, position: fixed, never clipped
+// ============================================================
+(function() {
+  const preview = document.createElement('div');
+  preview.id = 'card-preview';
+  document.body.appendChild(preview);
+
+  let currentX = 0, currentY = 0;
+
+  document.addEventListener('mousemove', e => {
+    currentX = e.clientX;
+    currentY = e.clientY;
+    if (preview.style.display === 'block') positionPreview();
+  });
+
+  function positionPreview() {
+    const pw = 180, ph = 230;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const margin = 12;
+
+    let x = currentX + 16;
+    let y = currentY - ph / 2;
+
+    // Flip left if too close to right edge
+    if (x + pw + margin > vw) x = currentX - pw - 16;
+    // Clamp vertically
+    if (y < margin) y = margin;
+    if (y + ph + margin > vh) y = vh - ph - margin;
+
+    preview.style.left = x + 'px';
+    preview.style.top  = y + 'px';
+  }
+
+  // Attach listeners via event delegation on document
+  document.addEventListener('mouseover', e => {
+    const card = e.target.closest('.hand-card');
+    if (!card) return;
+    const inner = card.querySelector('.card-inner');
+    if (!inner) return;
+    preview.innerHTML = inner.outerHTML;
+    preview.style.display = 'block';
+
+    // Add glow class based on card state
+    const previewInner = preview.querySelector('.card-inner');
+    if (card.classList.contains('clickable')) {
+      previewInner.classList.add('preview-glow-green');
+    } else if (card.classList.contains('can-block')) {
+      previewInner.classList.add('preview-glow-blue');
+    }
+    positionPreview();
+  });
+
+  document.addEventListener('mouseout', e => {
+    const card = e.target.closest('.hand-card');
+    if (!card) return;
+    // Only hide if we actually left the hand-card (not just moved to a child)
+    if (!card.contains(e.relatedTarget)) {
+      preview.style.display = 'none';
+    }
+  });
+})();
 
 // ---- BOOT ----
 window.addEventListener('DOMContentLoaded', async () => {

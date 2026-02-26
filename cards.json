@@ -2,13 +2,13 @@
   {
     "type": "creature",
     "id": "cr_001",
-    "name": "Ember Sprite",
+    "name": "Spark Imp",
     "cost": 1,
     "attack": 1,
-    "block": 1,
-    "healthMax": 2,
+    "block": 0,
+    "healthMax": 1,
     "ability": {
-      "trigger": "on_death",
+      "trigger": "on_play",
       "effect": "deal_damage",
       "value": 1,
       "target": "enemy_player"
@@ -17,31 +17,81 @@
   {
     "type": "creature",
     "id": "cr_002",
-    "name": "Thorn Rat",
+    "name": "Rush Pup",
     "cost": 1,
     "attack": 2,
     "block": 0,
     "healthMax": 1,
-    "ability": null
+    "ability": {
+      "trigger": "on_play",
+      "effect": "rush",
+      "value": 0,
+      "target": "self"
+    }
   },
   {
     "type": "creature",
     "id": "cr_003",
-    "name": "Mossy Crawler",
-    "cost": 2,
+    "name": "Thorn Rat",
+    "cost": 1,
     "attack": 1,
-    "block": 2,
-    "healthMax": 3,
+    "block": 1,
+    "healthMax": 2,
     "ability": {
       "trigger": "on_death",
-      "effect": "heal",
-      "value": 2,
+      "effect": "draw",
+      "value": 1,
       "target": "self"
     }
   },
   {
     "type": "creature",
     "id": "cr_004",
+    "name": "Ember Sprite",
+    "cost": 1,
+    "attack": 2,
+    "block": 0,
+    "healthMax": 1,
+    "ability": {
+      "trigger": "on_play",
+      "effect": "rush",
+      "value": 0,
+      "target": "self"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_005",
+    "name": "Bog Rat",
+    "cost": 2,
+    "attack": 1,
+    "block": 1,
+    "healthMax": 3,
+    "ability": {
+      "trigger": "on_play",
+      "effect": "tap_enemy",
+      "value": 1,
+      "target": "random_enemy_creature"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_006",
+    "name": "Gloom Imp",
+    "cost": 2,
+    "attack": 3,
+    "block": 0,
+    "healthMax": 1,
+    "ability": {
+      "trigger": "on_play",
+      "effect": "rush",
+      "value": 0,
+      "target": "self"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_007",
     "name": "Stone Pup",
     "cost": 2,
     "attack": 2,
@@ -56,27 +106,42 @@
   },
   {
     "type": "creature",
-    "id": "cr_005",
-    "name": "Gloom Imp",
+    "id": "cr_008",
+    "name": "Vine Crawler",
     "cost": 2,
-    "attack": 3,
-    "block": 0,
-    "healthMax": 1,
+    "attack": 1,
+    "block": 2,
+    "healthMax": 3,
     "ability": {
       "trigger": "on_death",
-      "effect": "deal_damage",
-      "value": 2,
+      "effect": "draw",
+      "value": 1,
+      "target": "self"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_009",
+    "name": "Sand Stalker",
+    "cost": 3,
+    "attack": 3,
+    "block": 1,
+    "healthMax": 3,
+    "ability": {
+      "trigger": "on_attack",
+      "effect": "tap_enemy",
+      "value": 1,
       "target": "random_enemy_creature"
     }
   },
   {
     "type": "creature",
-    "id": "cr_006",
+    "id": "cr_010",
     "name": "Fungal Brute",
     "cost": 3,
     "attack": 2,
     "block": 2,
-    "healthMax": 5,
+    "healthMax": 4,
     "ability": {
       "trigger": "on_damage",
       "effect": "heal",
@@ -86,332 +151,256 @@
   },
   {
     "type": "creature",
-    "id": "cr_007",
-    "name": "Sand Stalker",
+    "id": "cr_011",
+    "name": "Swamp Toad",
     "cost": 3,
     "attack": 4,
-    "block": 1,
-    "healthMax": 3,
-    "ability": {
-      "trigger": "on_attack",
-      "effect": "deal_damage",
-      "value": 1,
-      "target": "enemy_player"
-    }
-  },
-  {
-    "type": "creature",
-    "id": "cr_008",
-    "name": "Bog Witch",
-    "cost": 4,
-    "attack": 3,
-    "block": 2,
-    "healthMax": 4,
-    "ability": {
-      "trigger": "on_damage",
-      "effect": "deal_damage",
-      "value": 2,
-      "target": "random_enemy_creature"
-    }
-  },
-  {
-    "type": "creature",
-    "id": "cr_009",
-    "name": "Iron Golem",
-    "cost": 4,
-    "attack": 2,
-    "block": 4,
-    "healthMax": 7,
-    "ability": {
-      "trigger": "on_damage",
-      "effect": "prevent_damage",
-      "value": 1,
-      "target": "self"
-    }
-  },
-  {
-    "type": "creature",
-    "id": "cr_010",
-    "name": "Viper Mage",
-    "cost": 5,
-    "attack": 5,
-    "block": 1,
-    "healthMax": 4,
-    "ability": {
-      "trigger": "on_play",
-      "effect": "deal_damage",
-      "value": 2,
-      "target": "random_enemy_creature"
-    }
-  },
-  {
-    "type": "creature",
-    "id": "cr_011",
-    "name": "Ashwood Scout",
-    "cost": 5,
-    "attack": 4,
-    "block": 3,
-    "healthMax": 5,
-    "ability": {
-      "trigger": "on_attack",
-      "effect": "buff_attack",
-      "value": 1,
-      "target": "ally_creature"
-    }
+    "block": 0,
+    "healthMax": 2,
+    "ability": null
   },
   {
     "type": "creature",
     "id": "cr_012",
     "name": "Plague Hound",
-    "cost": 5,
-    "attack": 6,
+    "cost": 3,
+    "attack": 3,
     "block": 1,
-    "healthMax": 3,
+    "healthMax": 2,
     "ability": {
-      "trigger": "on_death",
+      "trigger": "on_attack",
       "effect": "deal_damage",
-      "value": 3,
+      "value": 1,
       "target": "enemy_player"
     }
   },
   {
     "type": "creature",
     "id": "cr_013",
-    "name": "Tide Warden",
-    "cost": 6,
-    "attack": 4,
-    "block": 5,
-    "healthMax": 8,
+    "name": "Iron Golem",
+    "cost": 4,
+    "attack": 2,
+    "block": 3,
+    "healthMax": 5,
     "ability": {
       "trigger": "on_damage",
-      "effect": "buff_health",
-      "value": 2,
+      "effect": "heal",
+      "value": 1,
       "target": "self"
     }
   },
   {
     "type": "creature",
     "id": "cr_014",
-    "name": "Storm Hawk",
-    "cost": 6,
-    "attack": 7,
-    "block": 2,
-    "healthMax": 6,
+    "name": "Ashwood Scout",
+    "cost": 4,
+    "attack": 4,
+    "block": 1,
+    "healthMax": 3,
     "ability": {
-      "trigger": "on_attack",
-      "effect": "deal_damage",
-      "value": 2,
-      "target": "enemy_player"
+      "trigger": "on_play",
+      "effect": "tap_enemy",
+      "value": 1,
+      "target": "random_enemy_creature"
     }
   },
   {
     "type": "creature",
     "id": "cr_015",
-    "name": "Bone Colossus",
-    "cost": 7,
-    "attack": 6,
-    "block": 4,
-    "healthMax": 9,
+    "name": "Bog Witch",
+    "cost": 4,
+    "attack": 3,
+    "block": 2,
+    "healthMax": 4,
     "ability": {
       "trigger": "on_attack",
-      "effect": "buff_attack",
-      "value": 2,
-      "target": "self"
+      "effect": "deal_damage",
+      "value": 1,
+      "target": "enemy_player"
     }
   },
   {
     "type": "creature",
     "id": "cr_016",
-    "name": "Frost Specter",
-    "cost": 7,
-    "attack": 8,
-    "block": 2,
-    "healthMax": 7,
+    "name": "Storm Hawk",
+    "cost": 5,
+    "attack": 5,
+    "block": 1,
+    "healthMax": 3,
     "ability": {
-      "trigger": "on_damage",
+      "trigger": "on_play",
       "effect": "deal_damage",
-      "value": 3,
+      "value": 2,
       "target": "enemy_player"
     }
   },
   {
     "type": "creature",
     "id": "cr_017",
-    "name": "Lava Titan",
-    "cost": 8,
-    "attack": 9,
-    "block": 3,
-    "healthMax": 8,
+    "name": "Viper Mage",
+    "cost": 5,
+    "attack": 4,
+    "block": 1,
+    "healthMax": 4,
     "ability": {
-      "trigger": "on_attack",
+      "trigger": "on_death",
       "effect": "deal_damage",
-      "value": 3,
-      "target": "random_enemy_creature"
+      "value": 2,
+      "target": "enemy_player"
     }
   },
   {
     "type": "creature",
     "id": "cr_018",
-    "name": "Void Sentinel",
-    "cost": 8,
-    "attack": 5,
-    "block": 6,
-    "healthMax": 10,
+    "name": "Tide Warden",
+    "cost": 5,
+    "attack": 3,
+    "block": 3,
+    "healthMax": 6,
     "ability": {
-      "trigger": "on_play",
+      "trigger": "on_damage",
       "effect": "heal",
-      "value": 4,
+      "value": 2,
       "target": "self"
     }
   },
   {
     "type": "creature",
     "id": "cr_019",
-    "name": "Shadow Dragon",
-    "cost": 9,
-    "attack": 9,
-    "block": 5,
-    "healthMax": 10,
+    "name": "Bone Colossus",
+    "cost": 6,
+    "attack": 6,
+    "block": 2,
+    "healthMax": 5,
     "ability": {
-      "trigger": "on_attack",
+      "trigger": "on_play",
       "effect": "deal_damage",
-      "value": 4,
+      "value": 2,
       "target": "enemy_player"
     }
   },
   {
     "type": "creature",
     "id": "cr_020",
-    "name": "Eternal Leviathan",
-    "cost": 10,
-    "attack": 10,
-    "block": 8,
-    "healthMax": 12,
+    "name": "Frost Specter",
+    "cost": 6,
+    "attack": 5,
+    "block": 1,
+    "healthMax": 6,
     "ability": {
-      "trigger": "on_death",
+      "trigger": "on_attack",
+      "effect": "tap_enemy",
+      "value": 1,
+      "target": "random_enemy_creature"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_021",
+    "name": "Shadow Dragon",
+    "cost": 7,
+    "attack": 7,
+    "block": 2,
+    "healthMax": 5,
+    "ability": {
+      "trigger": "on_play",
       "effect": "deal_damage",
-      "value": 6,
+      "value": 2,
       "target": "enemy_player"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_022",
+    "name": "Void Sentinel",
+    "cost": 7,
+    "attack": 5,
+    "block": 3,
+    "healthMax": 7,
+    "ability": {
+      "trigger": "on_attack",
+      "effect": "deal_damage",
+      "value": 2,
+      "target": "enemy_player"
+    }
+  },
+  {
+    "type": "creature",
+    "id": "cr_023",
+    "name": "Herald of Thorns",
+    "cost": 3,
+    "attack": 2,
+    "block": 1,
+    "healthMax": 3,
+    "ability": {
+      "trigger": "on_play",
+      "effect": "buff_health_all",
+      "value": 1,
+      "target": "all_allies"
     }
   },
   {
     "type": "action",
     "id": "ac_001",
-    "name": "Battle Cry",
+    "name": "Fireball",
     "cost": 2,
     "block": null,
     "timing": "attack_phase_only",
     "ability": {
       "trigger": "on_resolve",
-      "effect": "buff_attack",
+      "effect": "deal_damage",
+      "value": 2,
+      "target": "enemy_player"
+    }
+  },
+  {
+    "type": "action",
+    "id": "ac_002",
+    "name": "Smite",
+    "cost": 3,
+    "block": null,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "deal_damage",
+      "value": 3,
+      "target": "enemy_creature"
+    }
+  },
+  {
+    "type": "action",
+    "id": "ac_003",
+    "name": "Mending Touch",
+    "cost": 2,
+    "block": 1,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "heal",
       "value": 3,
       "target": "ally_creature"
     }
   },
   {
     "type": "action",
-    "id": "ac_002",
-    "name": "Mending Bark",
-    "cost": 3,
-    "block": null,
-    "timing": "attack_phase_only",
-    "ability": {
-      "trigger": "on_resolve",
-      "effect": "buff_health",
-      "value": 4,
-      "target": "ally_creature"
-    }
-  },
-  {
-    "type": "action",
-    "id": "ac_003",
-    "name": "Second Wind",
-    "cost": 2,
-    "block": 3,
-    "timing": "attack_phase_only",
-    "ability": {
-      "trigger": "on_resolve",
-      "effect": "heal",
-      "value": 4,
-      "target": "self"
-    }
-  },
-  {
-    "type": "action",
     "id": "ac_004",
-    "name": "Rejuvenate",
+    "name": "Second Wind",
     "cost": 1,
     "block": 2,
     "timing": "attack_phase_only",
     "ability": {
       "trigger": "on_resolve",
       "effect": "heal",
-      "value": 3,
-      "target": "ally_creature"
-    }
-  },
-  {
-    "type": "action",
-    "id": "ac_005",
-    "name": "Iron Shield",
-    "cost": 0,
-    "block": 4,
-    "timing": "attack_phase_only",
-    "ability": {
-      "trigger": "on_resolve",
-      "effect": "prevent_damage",
-      "value": 3,
+      "value": 2,
       "target": "self"
     }
   },
   {
     "type": "action",
-    "id": "ac_006",
-    "name": "Ward Stone",
-    "cost": 2,
-    "block": 5,
-    "timing": "attack_phase_only",
-    "ability": {
-      "trigger": "on_resolve",
-      "effect": "prevent_damage",
-      "value": 4,
-      "target": "ally_creature"
-    }
-  },
-  {
-    "type": "action",
-    "id": "ac_007",
-    "name": "Smite",
-    "cost": 4,
-    "block": null,
-    "timing": "attack_phase_only",
-    "ability": {
-      "trigger": "on_resolve",
-      "effect": "deal_damage",
-      "value": 5,
-      "target": "enemy_creature"
-    }
-  },
-  {
-    "type": "action",
-    "id": "ac_008",
-    "name": "Fireball",
-    "cost": 6,
-    "block": null,
-    "timing": "attack_phase_only",
-    "ability": {
-      "trigger": "on_resolve",
-      "effect": "deal_damage",
-      "value": 6,
-      "target": "enemy_player"
-    }
-  },
-  {
-    "type": "action",
-    "id": "ac_009",
+    "id": "ac_005",
     "name": "Arcane Scroll",
-    "cost": 0,
-    "block": null,
+    "cost": 2,
+    "block": 1,
     "timing": "attack_phase_only",
     "ability": {
       "trigger": "on_resolve",
@@ -422,16 +411,86 @@
   },
   {
     "type": "action",
+    "id": "ac_006",
+    "name": "Battle Cry",
+    "cost": 2,
+    "block": null,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "rush",
+      "value": 0,
+      "target": "ally_creature"
+    }
+  },
+  {
+    "type": "action",
+    "id": "ac_007",
+    "name": "Iron Shield",
+    "cost": 0,
+    "block": 3,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "gain_mana",
+      "value": 1,
+      "target": "self"
+    }
+  },
+  {
+    "type": "action",
+    "id": "ac_008",
+    "name": "Stasis Coil",
+    "cost": 3,
+    "block": 1,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "tap_enemy",
+      "value": 1,
+      "target": "enemy_creature"
+    }
+  },
+  {
+    "type": "action",
+    "id": "ac_009",
+    "name": "Ambush",
+    "cost": 2,
+    "block": null,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "damage_and_tap",
+      "value": 2,
+      "target": "enemy_creature"
+    }
+  },
+  {
+    "type": "action",
     "id": "ac_010",
-    "name": "Chain Lightning",
+    "name": "War Drum",
     "cost": 3,
     "block": null,
     "timing": "attack_phase_only",
     "ability": {
       "trigger": "on_resolve",
-      "effect": "deal_damage",
-      "value": 4,
-      "target": "random_enemy_creature"
+      "effect": "buff_attack_all",
+      "value": 1,
+      "target": "all_allies"
+    }
+  },
+  {
+    "type": "action",
+    "id": "ac_011",
+    "name": "Drain Life",
+    "cost": 3,
+    "block": 1,
+    "timing": "attack_phase_only",
+    "ability": {
+      "trigger": "on_resolve",
+      "effect": "drain_life",
+      "value": 2,
+      "target": "enemy_player"
     }
   }
 ]
