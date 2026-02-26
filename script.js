@@ -23,7 +23,7 @@ const STATE = {
   COMBAT_SELECT_TARGET:     'COMBAT_SELECT_TARGET',
   COMBAT_BLOCK:             'COMBAT_BLOCK',
   COMBAT_RESOLVE:           'COMBAT_RESOLVE',
-  COMBAT_SELECT_TAP_TARGET: 'COMBAT_SELECT_TAP_TARGET', // player chooses which enemy to tap
+  COMBAT_SELECT_CREATURE_TARGET: 'COMBAT_SELECT_CREATURE_TARGET', // player chooses an enemy creature for any targeted effect
   END_TURN:                 'END_TURN',
   GAME_OVER:                'GAME_OVER'
 };
@@ -116,7 +116,7 @@ function initGame() {
     },
     log:       [],
     winner:    null,
-    pendingTap: null   // { cardName, ownerPid, continuation } — set while waiting for tap target selection
+    pendingCreatureSelect: null  // { cardName, ownerPid, onSelect, targetFilter, hintText, continuation } — set while player picks a creature target
   };
   // Starting hand: 3 cards each
   for (let i = 0; i < 3; i++) { drawCard('p1', true); drawCard('p2', true); }
@@ -186,13 +186,24 @@ function resolveAbility(card, trigger, ownerPid) {
         enemy.hp -= ab.value;
         log(`💥 ${pLabel(enemyPid)} takes ${ab.value} → HP ${enemy.hp}`);
       } else if (ab.target === 'random_enemy_creature' || ab.target === 'enemy_creature') {
-        const pool = (ab.target === 'enemy_creature' && G.combat.target && G.combat.target !== 'player')
-          ? enemy.board.filter(c => c.uid === G.combat.target)
-          : enemy.board;
-        if (pool.length > 0) {
-          const t = pool[Math.floor(Math.random() * pool.length)];
+        // If already in combat with a specific creature target, use that directly
+        if (ab.target === 'enemy_creature' && G.combat.target && G.combat.target !== 'player') {
+          const t = enemy.board.find(c => c.uid === G.combat.target);
+          if (t) { t.healthCurrent -= ab.value; log(`💥 ${t.name} takes ${ab.value} → HP ${t.healthCurrent}`); }
+        } else if (enemy.board.length === 1) {
+          const t = enemy.board[0];
           t.healthCurrent -= ab.value;
           log(`💥 ${t.name} takes ${ab.value} → HP ${t.healthCurrent}`);
+        } else if (enemy.board.length > 1) {
+          const dmgVal = ab.value;
+          G.pendingCreatureSelect = {
+            cardName: card.name, ownerPid,
+            onSelect: t => { t.healthCurrent -= dmgVal; log(`💥 ${t.name} takes ${dmgVal} → HP ${t.healthCurrent}`); },
+            targetFilter: () => true,
+            hintText: `💥 ${card.name}: click an enemy creature to deal ${ab.value} damage`,
+            continuation: null
+          };
+          G.state = STATE.COMBAT_SELECT_CREATURE_TARGET;
         }
       }
       break;
@@ -269,14 +280,18 @@ function resolveAbility(card, trigger, ownerPid) {
       const pool = enemy.board.filter(c => !c.tapped);
       if (pool.length === 0) break;
       if (pool.length === 1) {
-        // Only one target — auto-tap, no need to ask
         pool[0].tapped = true;
         log(`🌀 ${pool[0].name} is tapped by ${card.name}!`);
         break;
       }
-      // Multiple targets — player chooses (caller must set G.pendingTap.continuation)
-      G.pendingTap = { cardName: card.name, ownerPid, continuation: null };
-      G.state = STATE.COMBAT_SELECT_TAP_TARGET;
+      G.pendingCreatureSelect = {
+        cardName: card.name, ownerPid,
+        onSelect: t => { t.tapped = true; log(`🌀 ${t.name} is tapped by ${card.name}!`); },
+        targetFilter: c => !c.tapped,
+        hintText: `🌀 ${card.name}: click an enemy creature to tap it`,
+        continuation: null
+      };
+      G.state = STATE.COMBAT_SELECT_CREATURE_TARGET;
       break;
     }
 
@@ -286,16 +301,27 @@ function resolveAbility(card, trigger, ownerPid) {
       break;
 
     case 'damage_and_tap': {
-      // Deal damage to a creature AND tap it
       const pool = (ab.target === 'enemy_creature' && G.combat.target && G.combat.target !== 'player')
         ? enemy.board.filter(c => c.uid === G.combat.target)
         : enemy.board;
-      if (pool.length > 0) {
-        const t = pool[Math.floor(Math.random() * pool.length)];
+      if (pool.length === 0) break;
+      if (pool.length === 1) {
+        const t = pool[0];
         t.healthCurrent -= ab.value;
         t.tapped = true;
         log(`🗡 ${card.name}: ${t.name} takes ${ab.value} dmg and is tapped → HP ${t.healthCurrent}`);
+        break;
       }
+      const dmgVal = ab.value;
+      const cardNameSnap = card.name;
+      G.pendingCreatureSelect = {
+        cardName: card.name, ownerPid,
+        onSelect: t => { t.healthCurrent -= dmgVal; t.tapped = true; log(`🗡 ${cardNameSnap}: ${t.name} takes ${dmgVal} dmg and is tapped → HP ${t.healthCurrent}`); },
+        targetFilter: () => true,
+        hintText: `🗡 ${card.name}: click an enemy creature to deal ${ab.value} damage and tap it`,
+        continuation: null
+      };
+      G.state = STATE.COMBAT_SELECT_CREATURE_TARGET;
       break;
     }
 
@@ -326,16 +352,16 @@ function resolveAbility(card, trigger, ownerPid) {
   checkDeath();
 }
 
-// Called when the player clicks an enemy creature during COMBAT_SELECT_TAP_TARGET
-function selectTapTarget(creatureUid) {
-  if (G.state !== STATE.COMBAT_SELECT_TAP_TARGET || !G.pendingTap) return;
-  const { cardName, ownerPid, continuation } = G.pendingTap;
+// Called when the player clicks an enemy creature during COMBAT_SELECT_CREATURE_TARGET
+function selectEnemyCreature(creatureUid) {
+  if (G.state !== STATE.COMBAT_SELECT_CREATURE_TARGET || !G.pendingCreatureSelect) return;
+  const { ownerPid, onSelect, targetFilter, continuation } = G.pendingCreatureSelect;
   const enemyPid = ownerPid === 'p1' ? 'p2' : 'p1';
-  const t = G.players[enemyPid].board.find(c => c.uid === creatureUid && !c.tapped);
+  const t = G.players[enemyPid].board.find(c => c.uid === creatureUid && targetFilter(c));
   if (!t) return;
-  t.tapped = true;
-  log(`🌀 ${t.name} is tapped by ${cardName}!`);
-  G.pendingTap = null;
+  onSelect(t);
+  G.pendingCreatureSelect = null;
+  checkDeath();
   if (G.state === STATE.GAME_OVER) return;
   if (continuation) continuation();
   else renderAll();
@@ -399,8 +425,8 @@ function playCreature(handCardUid) {
   log(`▶ ${pLabel(G.activePlayer)} plays ${card.name} (summoning sickness)`);
   resolveAbility(instance, 'on_play', G.activePlayer);
 
-  if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
-    G.pendingTap.continuation = () => {
+  if (G.state === STATE.COMBAT_SELECT_CREATURE_TARGET) {
+    G.pendingCreatureSelect.continuation = () => {
       G.state = STATE.PLAY_CREATURES;
       renderAll();
     };
@@ -433,9 +459,9 @@ function playPreActionCard(handCardUid) {
   log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
   resolveAbility({ ...card }, 'on_resolve', G.activePlayer);
 
-  if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
+  if (G.state === STATE.COMBAT_SELECT_CREATURE_TARGET) {
     // Wait for player to choose which creature to tap
-    G.pendingTap.continuation = () => {
+    G.pendingCreatureSelect.continuation = () => {
       p.graveyard.push(card);
       G.state = STATE.COMBAT_PRE_ACTIONS;
       renderAll();
@@ -519,8 +545,8 @@ function _applyActionsStep(actions, i) {
     const attCard = active().board.find(c => c.uid === G.combat.attacker);
     if (attCard) {
       resolveAbility(attCard, 'on_attack', G.activePlayer);
-      if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
-        G.pendingTap.continuation = () => {
+      if (G.state === STATE.COMBAT_SELECT_CREATURE_TARGET) {
+        G.pendingCreatureSelect.continuation = () => {
           if (G.state === STATE.GAME_OVER) return;
           G.state = STATE.COMBAT_SELECT_TARGET;
           renderAll();
@@ -539,8 +565,8 @@ function _applyActionsStep(actions, i) {
   resolveAbility({ ...ac, uid: ac.uid }, 'on_resolve', G.activePlayer);
   active().graveyard.push(ac);
 
-  if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
-    G.pendingTap.continuation = () => {
+  if (G.state === STATE.COMBAT_SELECT_CREATURE_TARGET) {
+    G.pendingCreatureSelect.continuation = () => {
       G.state = STATE.COMBAT_APPLY_ACTIONS;
       _applyActionsStep(actions, i + 1);
     };
@@ -725,18 +751,18 @@ function renderPlayer(pid, isTop) {
       const canBeTarget = isDefending
         && G.state === STATE.COMBAT_SELECT_TARGET;
 
-      // Can be clicked as tap target?
-      const canBeTapTarget = G.state === STATE.COMBAT_SELECT_TAP_TARGET
-        && G.pendingTap
-        && pid !== G.pendingTap.ownerPid
-        && !c.tapped;
+      // Can be clicked as a targeted creature effect (tap, damage, etc.)?
+      const canBeTapTarget = G.state === STATE.COMBAT_SELECT_CREATURE_TARGET
+        && G.pendingCreatureSelect
+        && pid !== G.pendingCreatureSelect.ownerPid
+        && G.pendingCreatureSelect.targetFilter(c);
 
       slot.classList.add('filled');
       if (c.tapped)           slot.classList.add('tapped-slot');
       if (canBeAttacker)      { slot.classList.add('can-attack'); slot.onclick = () => selectAttacker(c.uid); slot.title = `Attack with ${c.name}`; }
       if (canBeTarget)        { slot.classList.add('targetable');  slot.onclick = () => selectTarget(c.uid);
         slot.title = c.tapped ? `Attack ${c.name} (tapped — no counterattack)` : `Attack ${c.name} (will counterattack!)`; }
-      if (canBeTapTarget)     { slot.classList.add('targetable'); slot.onclick = () => selectTapTarget(c.uid); slot.title = `Tap ${c.name}`; }
+      if (canBeTapTarget)     { slot.classList.add('targetable'); slot.onclick = () => selectEnemyCreature(c.uid); slot.title = G.pendingCreatureSelect ? G.pendingCreatureSelect.hintText : `Select ${c.name}`; }
       if (c.summonedThisTurn && isActive) slot.classList.add('summoning-sick');
 
       // Incoming damage preview
@@ -1000,9 +1026,8 @@ function renderControls() {
       break;
     }
 
-    case STATE.COMBAT_SELECT_TAP_TARGET: {
-      const tapName = G.pendingTap ? G.pendingTap.cardName : '?';
-      hint(ctrl, `🌀 ${tapName}: click an enemy creature to tap it`);
+    case STATE.COMBAT_SELECT_CREATURE_TARGET: {
+      hint(ctrl, G.pendingCreatureSelect ? G.pendingCreatureSelect.hintText : 'Select an enemy creature');
       break;
     }
 
@@ -1043,7 +1068,7 @@ const PHASE_STEPS = [
   { key: STATE.COMBAT_SELECT_ATTACKER,   label: '3.1 · Select Attacker' },
   { key: STATE.COMBAT_ATTACK_ACTIONS,    label: '3.2 · Attack Actions' },
   { key: STATE.COMBAT_APPLY_ACTIONS,     label: '3.4 · Apply Actions' },
-  { key: STATE.COMBAT_SELECT_TAP_TARGET, label: '· Select Tap Target' },
+  { key: STATE.COMBAT_SELECT_CREATURE_TARGET, label: '· Select Target' },
   { key: STATE.COMBAT_SELECT_TARGET,     label: '3.5 · Select Target' },
   { key: STATE.COMBAT_BLOCK,             label: '3.6 · Block' },
   { key: STATE.COMBAT_RESOLVE,           label: '3.7 · Resolve' },
