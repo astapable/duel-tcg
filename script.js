@@ -71,10 +71,20 @@ function buildDeck() {
     pool.push({ ...c, uid: uid() });
     pool.push({ ...c, uid: uid() });
   });
+  // Add 5 extra random action cards
+  for (let i = 0; i < 5; i++) {
+    const c = actions[Math.floor(Math.random() * actions.length)];
+    pool.push({ ...c, uid: uid() });
+  }
 
-  // Target: 40 cards total (37 in deck + 3 drawn as starting hand)
-  // Pad with extra cheap creature copies if under target
-  const TARGET = 40;
+  // Add 5 extra random action cards
+  for (let i = 0; i < 5; i++) {
+    const c = actions[Math.floor(Math.random() * actions.length)];
+    pool.push({ ...c, uid: uid() });
+  }
+
+  // Target: 45 cards total (42 in deck + 3 drawn as starting hand)
+  const TARGET = 45;
   const cheap = creatures.filter(c => c.cost <= 3);
   while (pool.length < TARGET) {
     const c = cheap[Math.floor(Math.random() * cheap.length)];
@@ -137,7 +147,7 @@ function drawCard(pid, silent = false) {
   if (p.deck.length === 0) { triggerLoss(pid, 'deck empty'); return null; }
   const card = p.deck.shift();
   p.hand.push(card);
-  if (!silent) log(`🃏 ${pLabel(pid)} draws ${card.name}`);
+  if (!silent) log(`🃏 ${pLabel(pid)} draws ${card.name} (${G[pid].deck.length} left in deck)`);
   return card;
 }
 
@@ -158,7 +168,7 @@ function checkDeath() {
     const p = G.players[pid];
     const dead = p.board.filter(c => c.healthCurrent <= 0);
     dead.forEach(c => {
-      log(`💀 ${c.name} dies`);
+      log(`💀 ${c.name} dies (HP ${c.healthCurrent}/${c.healthMax})`);
       p.board = p.board.filter(x => x.uid !== c.uid);
       p.graveyard.push(c);
       resolveAbility(c, 'on_death', pid);
@@ -349,7 +359,9 @@ function doMaintenance() {
   if (p.turnCount > 1) p.manaAvailable = Math.min(p.manaAvailable + 2, MAX_MANA);
   p.manaCurrent = p.manaAvailable;
 
-  log(`━━ Turn ${G.globalTurn} · ${pLabel(G.activePlayer)} · Mana ${p.manaCurrent} ━━`);
+  log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  log(`⚔ TURN ${G.globalTurn} — ${pLabel(G.activePlayer).toUpperCase()}`);
+  log(`💎 Mana: ${p.manaCurrent}/${p.manaAvailable}  ♥ HP: ${p.hp}`);
   G.state = STATE.PLAY_CREATURES;
   renderAll();
 }
@@ -377,7 +389,7 @@ function playCreature(handCardUid) {
     _preventDmg:      0
   };
   p.board.push(instance);
-  log(`▶ ${pLabel(G.activePlayer)} plays ${card.name} (summoning sickness)`);
+  log(`🐾 ${pLabel(G.activePlayer)} summons ${card.name} [⚔${card.attack} 🛡${card.block} ♥${card.healthMax}] for 💎${card.cost}`);
   resolveAbility(instance, 'on_play', G.activePlayer);
   renderAll();
 }
@@ -401,8 +413,7 @@ function playPreActionCard(handCardUid) {
 
   p.manaCurrent -= card.cost;
   p.hand.splice(idx, 1);
-  log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
-  // Resolve immediately (no attacker context yet)
+  log(`🃏 ${pLabel(G.activePlayer)} plays [PRE-COMBAT] ${card.name} for 💎${card.cost}`);
   resolveAbility({ ...card }, 'on_resolve', G.activePlayer);
   p.graveyard.push(card);
   renderAll();
@@ -429,7 +440,7 @@ function selectAttacker(creatureUid) {
   G.combat.target         = null;
   G.combat.blockCard      = null;
   G.state = STATE.COMBAT_ATTACK_ACTIONS;
-  log(`⚔ ${pLabel(G.activePlayer)} declares ${creature.name} as attacker`);
+  log(`⚔ ${pLabel(G.activePlayer)} sends ${creature.name} [⚔${creature.attack} ♥${creature.healthCurrent}/${creature.healthMax}] to attack`);
   renderAll();
 }
 
@@ -446,7 +457,7 @@ function playActionCard(handCardUid) {
   p.manaCurrent -= card.cost;
   p.hand.splice(idx, 1);
   G.combat.pendingActions.push(card);
-  log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
+  log(`🃏 ${pLabel(G.activePlayer)} plays ${card.name} for 💎${card.cost}`);
   renderAll();
 }
 
@@ -503,7 +514,9 @@ function selectTarget(targetUid) {
   }
 
   G.state = STATE.COMBAT_BLOCK;
-  log(`🛡 ${pLabel(defenderKey())} may block`);
+  const attacker = active().board.find(c => c.uid === G.combat.attacker);
+  const targetName = G.combat.target === 'player' ? pLabel(defenderKey()) : (defender().board.find(c => c.uid === G.combat.target)?.name || '?');
+  log(`🗡 ${attacker?.name || '?'} [⚔${attacker?.attack}] attacks ${targetName} — ${pLabel(defenderKey())} may block`);
   renderAll();
 }
 
@@ -519,14 +532,14 @@ function playBlockCard(handCardUid) {
   def.hand.splice(idx, 1);
   def.graveyard.push(card);
   G.combat.blockCard = card;
-  log(`🛡 ${pLabel(defenderKey())} blocks with ${card.name} (block ${card.block})`);
+  log(`🛡 ${pLabel(defenderKey())} blocks with ${card.name} (🛡${card.block} absorbs damage)`);
   resolveCombat();
 }
 
 function skipBlock() {
   if (G.state !== STATE.COMBAT_BLOCK) return;
   G.combat.blockCard = null;
-  log(`${pLabel(defenderKey())} does not block`);
+  log(`🚫 ${pLabel(defenderKey())} does not block`);
   resolveCombat();
 }
 
@@ -544,28 +557,27 @@ function resolveCombat() {
   const damage = Math.max(0, attCard.attack - blockVal);
 
   if (blockVal > 0) {
-    log(`🛡 Block absorbs ${Math.min(blockVal, attCard.attack)} of ${attCard.attack} → ${damage} gets through`);
+    const absorbed = Math.min(blockVal, attCard.attack);
+    log(`🛡 Block: ${absorbed} absorbed → ${damage} gets through`);
   }
 
   if (G.combat.target === 'player') {
     def.hp -= damage;
-    log(`💥 ${damage} damage to ${pLabel(dKey)} → HP ${def.hp}`);
+    log(`💥 ${attCard.name} hits ${pLabel(dKey)} for ${damage} dmg → HP ${def.hp}/30`);
   } else {
     const target = def.board.find(c => c.uid === G.combat.target);
     if (target) {
-      // Attacker → Target
       const prevent   = target._preventDmg || 0;
       const actualDmg = Math.max(0, damage - prevent);
       target._preventDmg    = 0;
       target.healthCurrent -= actualDmg;
-      log(`💥 ${attCard.name} deals ${actualDmg} to ${target.name} → HP ${target.healthCurrent}/${target.healthMax}`);
+      log(`💥 ${attCard.name} [⚔${attCard.attack}] → ${target.name}: ${actualDmg} dmg → HP ${target.healthCurrent}/${target.healthMax}`);
       if (actualDmg > 0) resolveAbility(target, 'on_damage', dKey);
 
-      // Counterattack — only untapped (non-exhausted) creatures fight back
       if (!target.tapped) {
         const counterDmg = target.attack;
         attCard.healthCurrent -= counterDmg;
-        log(`⚡ ${target.name} counterattacks for ${counterDmg} → ${attCard.name} HP ${attCard.healthCurrent}/${attCard.healthMax}`);
+        log(`↩ ${target.name} [⚔${counterDmg}] counterattacks → ${attCard.name} HP ${attCard.healthCurrent}/${attCard.healthMax}`);
         if (counterDmg > 0) resolveAbility(attCard, 'on_damage', G.activePlayer);
       } else {
         log(`💤 ${target.name} is tapped — no counterattack`);
@@ -602,7 +614,7 @@ function doEndTurn() {
     log(`🗑 ${pLabel(G.activePlayer)} discards ${disc.name}`);
   }
 
-  log(`⏭ ${pLabel(G.activePlayer)} ends turn`);
+  log(`⏭ ${pLabel(G.activePlayer)} ends turn (💎${p.manaCurrent} mana left, ♥${p.hp} HP)`);
   G.activePlayer = G.activePlayer === 'p1' ? 'p2' : 'p1';
   doMaintenance();
 }
@@ -761,16 +773,19 @@ function renderCreatureCard(c, isAttacking, isTarget, incomingDmg) {
     else                              abilityText = `${t}: ${e} ${v}`;
   }
 
+  const artStyle = c.art ? `style="background-image:url('${c.art}')"` : '';
+
   return `
-    <div class="${classes}">
-      <div class="card-name">${c.name}</div>
-      <div class="card-cost">💎 ${c.cost}</div>
-      <div class="card-stats">
-        <span class="atk">⚔ ${c.attack}</span>
-        <span class="hp-bar">${c.healthCurrent}/${c.healthMax} ♥</span>
-        <span class="blk">🛡 ${c.block}</span>
+    <div class="${classes} ${c.art ? 'has-art' : ''}" ${artStyle}>
+      <div class="board-name-bar">${c.name}</div>
+      <div class="board-bottom">
+        <div class="board-stats-row">
+          <span class="stat-pill atk">⚔${c.attack}</span>
+          <span class="stat-pill hp-bar">${c.healthCurrent}/${c.healthMax}♥</span>
+          <span class="stat-pill blk">🛡${c.block}</span>
+        </div>
+        ${abilityText ? `<div class="board-ability-bar">${abilityText}</div>` : ''}
       </div>
-      ${abilityText ? `<div class="card-ability">${abilityText}</div>` : ''}
       ${sickBadge}
       ${dmgBadge}
     </div>`;
@@ -804,16 +819,24 @@ function renderHandCard(card) {
   }
 
   if (card.type === 'creature') {
-    return `<div class="card-inner creature-type">
-      <div class="card-type-badge">Creature</div>
-      <div class="card-name">${card.name}</div>
-      <div class="card-cost">💎 ${card.cost}</div>
-      <div class="card-stats">
-        <span class="atk">⚔ ${card.attack}</span>
-        <span class="blk">🛡 ${card.block}</span>
-        <span class="hp-bar">♥ ${card.healthMax}</span>
+    const artStyle = card.art ? `style="background-image:url('${card.art}')"` : '';
+    const hasArt = card.art ? 'has-art' : '';
+    const abilityHtml = card.ability
+      ? `<div class="hand-ability-bar">${abilityDesc(card.ability)}</div>` : '';
+    return `<div class="card-inner creature-type hand-creature ${hasArt}" ${artStyle}>
+      <div class="hand-top-bar">
+        <span class="card-type-badge">Creature</span>
+        <span class="card-cost">💎${card.cost}</span>
       </div>
-      <div class="card-ability">${abilityDesc(card.ability)}</div>
+      <div class="hand-bottom-bar">
+        <div class="hand-name">${card.name}</div>
+        <div class="hand-stats-row">
+          <span class="stat-pill atk">⚔${card.attack}</span>
+          <span class="stat-pill hp-bar">♥${card.healthMax}</span>
+          <span class="stat-pill blk">🛡${card.block}</span>
+        </div>
+        ${abilityHtml}
+      </div>
     </div>`;
   }
 
@@ -833,14 +856,21 @@ function renderHandCard(card) {
     drain_life:      `🩸 Deal ${card.ability.value} dmg to player, heal self ${card.ability.value}`,
   }[card.ability.effect] || `${card.ability.effect} ${card.ability.value}`;
 
-  return `<div class="card-inner action-type">
-    <div class="card-type-badge">Action</div>
-    <div class="card-name">${card.name}</div>
-    <div class="card-cost">💎 ${card.cost}</div>
-    <div class="card-stats">
-      ${card.block ? `<span class="blk">🛡 ${card.block}</span>` : '<span class="blk">🛡 —</span>'}
+  const artStyle = card.art ? `style="background-image:url('${card.art}')"` : '';
+  const hasArt = card.art ? 'has-art' : '';
+
+  return `<div class="card-inner action-type hand-creature ${hasArt}" ${artStyle}>
+    <div class="hand-top-bar">
+      <span class="card-type-badge">Action</span>
+      <span class="card-cost">💎${card.cost}</span>
     </div>
-    <div class="card-ability">${effectLabel}</div>
+    <div class="hand-bottom-bar">
+      <div class="hand-name">${card.name}</div>
+      <div class="hand-stats-row">
+        ${card.block ? `<span class="stat-pill blk">🛡${card.block}</span>` : ''}
+      </div>
+      <div class="hand-ability-bar">${effectLabel}</div>
+    </div>
   </div>`;
 }
 
@@ -987,7 +1017,17 @@ function renderPhaseBar() {
 // ---- LOG ----
 function renderLog() {
   const el = document.getElementById('log');
-  el.innerHTML = G.log.map(l => `<div class="log-entry">${l}</div>`).join('');
+  el.innerHTML = G.log.map(l => {
+    let cls = 'log-entry';
+    if (l.startsWith('━'))        cls += ' log-divider';
+    else if (l.startsWith('⚔ TURN')) cls += ' log-turn';
+    else if (l.startsWith('💥') || l.startsWith('↩')) cls += ' log-damage';
+    else if (l.startsWith('💀'))   cls += ' log-death';
+    else if (l.startsWith('💚') || l.startsWith('🩸')) cls += ' log-heal';
+    else if (l.startsWith('🛡'))   cls += ' log-block';
+    else if (l.startsWith('🃏') || l.startsWith('🐾')) cls += ' log-play';
+    return `<div class="${cls}">${l}</div>`;
+  }).join('');
 }
 
 // ---- GAME OVER ----
@@ -1013,18 +1053,20 @@ function showGameOver() {
   });
 
   function positionPreview() {
-    const pw = 180, ph = 230;
+    const pw = 200, ph = 280;
     const vw = window.innerWidth, vh = window.innerHeight;
     const margin = 12;
 
     let x = currentX + 16;
-    let y = currentY - ph / 2;
+    let y = currentY - ph - 16; // show above cursor
 
     // Flip left if too close to right edge
     if (x + pw + margin > vw) x = currentX - pw - 16;
-    // Clamp vertically
-    if (y < margin) y = margin;
+    // If not enough room above, show below cursor
+    if (y < margin) y = currentY + 16;
+    // Clamp vertically to screen
     if (y + ph + margin > vh) y = vh - ph - margin;
+    if (y < margin) y = margin;
 
     preview.style.left = x + 'px';
     preview.style.top  = y + 'px';

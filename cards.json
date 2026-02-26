@@ -12,7 +12,8 @@
       "effect": "deal_damage",
       "value": 1,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Spark Imp.jpg"
   },
   {
     "type": "creature",
@@ -27,7 +28,8 @@
       "effect": "rush",
       "value": 0,
       "target": "self"
-    }
+    },
+    "art": "art/Rush Pup.jpg"
   },
   {
     "type": "creature",
@@ -42,7 +44,8 @@
       "effect": "draw",
       "value": 1,
       "target": "self"
-    }
+    },
+    "art": "art/Thorn Rat.jpg"
   },
   {
     "type": "creature",
@@ -57,7 +60,8 @@
       "effect": "rush",
       "value": 0,
       "target": "self"
-    }
+    },
+    "art": "art/Ember Sprite.jpg"
   },
   {
     "type": "creature",
@@ -72,7 +76,8 @@
       "effect": "tap_enemy",
       "value": 1,
       "target": "random_enemy_creature"
-    }
+    },
+    "art": "art/Bog Rat.jpg"
   },
   {
     "type": "creature",
@@ -87,7 +92,8 @@
       "effect": "rush",
       "value": 0,
       "target": "self"
-    }
+    },
+    "art": "art/Gloom Imp.jpg"
   },
   {
     "type": "creature",
@@ -102,7 +108,8 @@
       "effect": "draw",
       "value": 1,
       "target": "self"
-    }
+    },
+    "art": "art/Stone Pup.jpg"
   },
   {
     "type": "creature",
@@ -117,7 +124,8 @@
       "effect": "draw",
       "value": 1,
       "target": "self"
-    }
+    },
+    "art": "art/Vine Crawler.jpg"
   },
   {
     "type": "creature",
@@ -132,7 +140,8 @@
       "effect": "tap_enemy",
       "value": 1,
       "target": "random_enemy_creature"
-    }
+    },
+    "art": "art/Sand Stalker.jpg"
   },
   {
     "type": "creature",
@@ -147,17 +156,8 @@
       "effect": "heal",
       "value": 1,
       "target": "self"
-    }
-  },
-  {
-    "type": "creature",
-    "id": "cr_011",
-    "name": "Swamp Toad",
-    "cost": 3,
-    "attack": 4,
-    "block": 0,
-    "healthMax": 2,
-    "ability": null
+    },
+    "art": "art/Fungal Brute.jpg"
   },
   {
     "type": "creature",
@@ -172,7 +172,8 @@
       "effect": "deal_damage",
       "value": 1,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Plague Hound.jpg"
   },
   {
     "type": "creature",
@@ -187,7 +188,8 @@
       "effect": "heal",
       "value": 1,
       "target": "self"
-    }
+    },
+    "art": "art/Iron Golem.jpg"
   },
   {
     "type": "creature",
@@ -202,7 +204,8 @@
       "effect": "tap_enemy",
       "value": 1,
       "target": "random_enemy_creature"
-    }
+    },
+    "art": "art/Ashwood Scout.jpg"
   },
   {
     "type": "creature",
@@ -217,7 +220,8 @@
       "effect": "deal_damage",
       "value": 1,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Bog Witch.jpg"
   },
   {
     "type": "creature",
@@ -232,22 +236,8 @@
       "effect": "deal_damage",
       "value": 2,
       "target": "enemy_player"
-    }
-  },
-  {
-    "type": "creature",
-    "id": "cr_017",
-    "name": "Viper Mage",
-    "cost": 5,
-    "attack": 4,
-    "block": 1,
-    "healthMax": 4,
-    "ability": {
-      "trigger": "on_death",
-      "effect": "deal_damage",
-      "value": 2,
-      "target": "enemy_player"
-    }
+    },
+    "art": "art/Storm Hawk.jpg"
   },
   {
     "type": "creature",
@@ -262,7 +252,8 @@
       "effect": "heal",
       "value": 2,
       "target": "self"
-    }
+    },
+    "art": "art/Tide Warden.jpg"
   },
   {
     "type": "creature",
@@ -277,7 +268,8 @@
       "effect": "deal_damage",
       "value": 2,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Bone Colossus.jpg"
   },
   {
     "type": "creature",
@@ -292,7 +284,8 @@
       "effect": "tap_enemy",
       "value": 1,
       "target": "random_enemy_creature"
-    }
+    },
+    "art": "art/Frost Specter.jpg"
   },
   {
     "type": "creature",
@@ -307,7 +300,8 @@
       "effect": "deal_damage",
       "value": 2,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Shadow Dragon.jpg"
   },
   {
     "type": "creature",
@@ -322,7 +316,8 @@
       "effect": "deal_damage",
       "value": 2,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Void Sentinel.jpg"
   },
   {
     "type": "creature",
@@ -337,7 +332,40 @@
       "effect": "buff_health_all",
       "value": 1,
       "target": "all_allies"
-    }
+    },
+    "art": "art/Herald of Thorns.jpg"
+  },
+  {
+    "type": "creature",
+    "id": "cr_011",
+    "name": "Swamp Toad",
+    "cost": 1,
+    "attack": 1,
+    "block": 0,
+    "healthMax": 2,
+    "ability": {
+      "trigger": "on_play",
+      "effect": "rush",
+      "value": 0,
+      "target": "self"
+    },
+    "art": "art/Swamp Toad.jpg"
+  },
+  {
+    "type": "creature",
+    "id": "cr_017",
+    "name": "Viper Mage",
+    "cost": 1,
+    "attack": 1,
+    "block": 2,
+    "healthMax": 1,
+    "ability": {
+      "trigger": "on_death",
+      "effect": "draw",
+      "value": 1,
+      "target": "self"
+    },
+    "art": "art/Viper Mage.jpg"
   },
   {
     "type": "action",
@@ -351,7 +379,8 @@
       "effect": "deal_damage",
       "value": 2,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Fireball.jpg"
   },
   {
     "type": "action",
@@ -365,7 +394,8 @@
       "effect": "deal_damage",
       "value": 3,
       "target": "enemy_creature"
-    }
+    },
+    "art": "art/Smite.jpg"
   },
   {
     "type": "action",
@@ -379,7 +409,8 @@
       "effect": "heal",
       "value": 3,
       "target": "ally_creature"
-    }
+    },
+    "art": "art/Mending Touch.jpg"
   },
   {
     "type": "action",
@@ -393,7 +424,8 @@
       "effect": "heal",
       "value": 2,
       "target": "self"
-    }
+    },
+    "art": "art/Second Wind.jpg"
   },
   {
     "type": "action",
@@ -407,7 +439,8 @@
       "effect": "draw",
       "value": 2,
       "target": "self"
-    }
+    },
+    "art": "art/Arcane Scroll.jpg"
   },
   {
     "type": "action",
@@ -421,7 +454,8 @@
       "effect": "rush",
       "value": 0,
       "target": "ally_creature"
-    }
+    },
+    "art": "art/Battle Cry.jpg"
   },
   {
     "type": "action",
@@ -435,7 +469,8 @@
       "effect": "gain_mana",
       "value": 1,
       "target": "self"
-    }
+    },
+    "art": "art/Iron Shield.jpg"
   },
   {
     "type": "action",
@@ -449,7 +484,8 @@
       "effect": "tap_enemy",
       "value": 1,
       "target": "enemy_creature"
-    }
+    },
+    "art": "art/Stasis Coil.jpg"
   },
   {
     "type": "action",
@@ -463,7 +499,8 @@
       "effect": "damage_and_tap",
       "value": 2,
       "target": "enemy_creature"
-    }
+    },
+    "art": "art/Ambush.jpg"
   },
   {
     "type": "action",
@@ -477,7 +514,8 @@
       "effect": "buff_attack_all",
       "value": 1,
       "target": "all_allies"
-    }
+    },
+    "art": "art/War Drum.jpg"
   },
   {
     "type": "action",
@@ -491,6 +529,7 @@
       "effect": "drain_life",
       "value": 2,
       "target": "enemy_player"
-    }
+    },
+    "art": "art/Drain Life.jpg"
   }
 ]
