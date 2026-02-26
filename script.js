@@ -14,17 +14,18 @@ const MAX_MANA    = 10;
 // ...repeat COMBAT_SELECT_ATTACKER loop for next attacker...
 // → END_TURN → (next player MAINTENANCE)
 const STATE = {
-  MAINTENANCE:            'MAINTENANCE',
-  PLAY_CREATURES:         'PLAY_CREATURES',
-  COMBAT_PRE_ACTIONS:     'COMBAT_PRE_ACTIONS',     // NEW: play actions before declaring attacker
-  COMBAT_SELECT_ATTACKER: 'COMBAT_SELECT_ATTACKER',
-  COMBAT_ATTACK_ACTIONS:  'COMBAT_ATTACK_ACTIONS',
-  COMBAT_APPLY_ACTIONS:   'COMBAT_APPLY_ACTIONS',
-  COMBAT_SELECT_TARGET:   'COMBAT_SELECT_TARGET',
-  COMBAT_BLOCK:           'COMBAT_BLOCK',
-  COMBAT_RESOLVE:         'COMBAT_RESOLVE',
-  END_TURN:               'END_TURN',
-  GAME_OVER:              'GAME_OVER'
+  MAINTENANCE:              'MAINTENANCE',
+  PLAY_CREATURES:           'PLAY_CREATURES',
+  COMBAT_PRE_ACTIONS:       'COMBAT_PRE_ACTIONS',
+  COMBAT_SELECT_ATTACKER:   'COMBAT_SELECT_ATTACKER',
+  COMBAT_ATTACK_ACTIONS:    'COMBAT_ATTACK_ACTIONS',
+  COMBAT_APPLY_ACTIONS:     'COMBAT_APPLY_ACTIONS',
+  COMBAT_SELECT_TARGET:     'COMBAT_SELECT_TARGET',
+  COMBAT_BLOCK:             'COMBAT_BLOCK',
+  COMBAT_RESOLVE:           'COMBAT_RESOLVE',
+  COMBAT_SELECT_TAP_TARGET: 'COMBAT_SELECT_TAP_TARGET', // player chooses which enemy to tap
+  END_TURN:                 'END_TURN',
+  GAME_OVER:                'GAME_OVER'
 };
 
 let G = null;
@@ -113,8 +114,9 @@ function initGame() {
       target:         null,   // uid of defender creature OR 'player'
       blockCard:      null
     },
-    log:    [],
-    winner: null
+    log:       [],
+    winner:    null,
+    pendingTap: null   // { cardName, ownerPid, continuation } — set while waiting for tap target selection
   };
   // Starting hand: 3 cards each
   for (let i = 0; i < 3; i++) { drawCard('p1', true); drawCard('p2', true); }
@@ -264,15 +266,17 @@ function resolveAbility(card, trigger, ownerPid) {
     }
 
     case 'tap_enemy': {
-      // Force tap a random enemy creature (or specific target during combat)
-      const pool = (ab.target === 'enemy_creature' && G.combat.target && G.combat.target !== 'player')
-        ? enemy.board.filter(c => c.uid === G.combat.target)
-        : enemy.board.filter(c => !c.tapped);
-      if (pool.length > 0) {
-        const t = pool[Math.floor(Math.random() * pool.length)];
-        t.tapped = true;
-        log(`🌀 ${t.name} is tapped by ${card.name}!`);
+      const pool = enemy.board.filter(c => !c.tapped);
+      if (pool.length === 0) break;
+      if (pool.length === 1) {
+        // Only one target — auto-tap, no need to ask
+        pool[0].tapped = true;
+        log(`🌀 ${pool[0].name} is tapped by ${card.name}!`);
+        break;
       }
+      // Multiple targets — player chooses (caller must set G.pendingTap.continuation)
+      G.pendingTap = { cardName: card.name, ownerPid, continuation: null };
+      G.state = STATE.COMBAT_SELECT_TAP_TARGET;
       break;
     }
 
@@ -320,6 +324,21 @@ function resolveAbility(card, trigger, ownerPid) {
     }
   }
   checkDeath();
+}
+
+// Called when the player clicks an enemy creature during COMBAT_SELECT_TAP_TARGET
+function selectTapTarget(creatureUid) {
+  if (G.state !== STATE.COMBAT_SELECT_TAP_TARGET || !G.pendingTap) return;
+  const { cardName, ownerPid, continuation } = G.pendingTap;
+  const enemyPid = ownerPid === 'p1' ? 'p2' : 'p1';
+  const t = G.players[enemyPid].board.find(c => c.uid === creatureUid && !c.tapped);
+  if (!t) return;
+  t.tapped = true;
+  log(`🌀 ${t.name} is tapped by ${cardName}!`);
+  G.pendingTap = null;
+  if (G.state === STATE.GAME_OVER) return;
+  if (continuation) continuation();
+  else renderAll();
 }
 
 // ============================================================
@@ -379,6 +398,16 @@ function playCreature(handCardUid) {
   p.board.push(instance);
   log(`▶ ${pLabel(G.activePlayer)} plays ${card.name} (summoning sickness)`);
   resolveAbility(instance, 'on_play', G.activePlayer);
+
+  if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
+    G.pendingTap.continuation = () => {
+      G.state = STATE.PLAY_CREATURES;
+      renderAll();
+    };
+    renderAll();
+    return;
+  }
+
   renderAll();
 }
 
@@ -402,8 +431,19 @@ function playPreActionCard(handCardUid) {
   p.manaCurrent -= card.cost;
   p.hand.splice(idx, 1);
   log(`▶ ${pLabel(G.activePlayer)} plays action: ${card.name}`);
-  // Resolve immediately (no attacker context yet)
   resolveAbility({ ...card }, 'on_resolve', G.activePlayer);
+
+  if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
+    // Wait for player to choose which creature to tap
+    G.pendingTap.continuation = () => {
+      p.graveyard.push(card);
+      G.state = STATE.COMBAT_PRE_ACTIONS;
+      renderAll();
+    };
+    renderAll();
+    return;
+  }
+
   p.graveyard.push(card);
   renderAll();
 }
@@ -466,22 +506,49 @@ function proceedApplyActions() {
 }
 
 function doApplyActions() {
-  const attCard = active().board.find(c => c.uid === G.combat.attacker);
+  const actions = [...G.combat.pendingActions];
+  G.combat.pendingActions = [];
+  _applyActionsStep(actions, 0);
+}
 
-  // Resolve each pending action
-  G.combat.pendingActions.forEach(ac => {
-    resolveAbility({ ...ac, uid: ac.uid }, 'on_resolve', G.activePlayer);
-    active().graveyard.push(ac);
-  });
-  G.combat.resolvedActions = [...G.combat.pendingActions];
-  G.combat.pendingActions  = [];
+// Process action cards one by one so tap_enemy can pause for target selection
+function _applyActionsStep(actions, i) {
+  if (i >= actions.length) {
+    G.combat.resolvedActions = actions;
+    // After all action cards, fire attacker's on_attack ability
+    const attCard = active().board.find(c => c.uid === G.combat.attacker);
+    if (attCard) {
+      resolveAbility(attCard, 'on_attack', G.activePlayer);
+      if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
+        G.pendingTap.continuation = () => {
+          if (G.state === STATE.GAME_OVER) return;
+          G.state = STATE.COMBAT_SELECT_TARGET;
+          renderAll();
+        };
+        renderAll();
+        return;
+      }
+    }
+    if (G.state === STATE.GAME_OVER) return;
+    G.state = STATE.COMBAT_SELECT_TARGET;
+    renderAll();
+    return;
+  }
 
-  // Trigger attacker on_attack ability
-  if (attCard) resolveAbility(attCard, 'on_attack', G.activePlayer);
+  const ac = actions[i];
+  resolveAbility({ ...ac, uid: ac.uid }, 'on_resolve', G.activePlayer);
+  active().graveyard.push(ac);
 
-  if (G.state === STATE.GAME_OVER) return;
-  G.state = STATE.COMBAT_SELECT_TARGET;
-  renderAll();
+  if (G.state === STATE.COMBAT_SELECT_TAP_TARGET) {
+    G.pendingTap.continuation = () => {
+      G.state = STATE.COMBAT_APPLY_ACTIONS;
+      _applyActionsStep(actions, i + 1);
+    };
+    renderAll();
+    return;
+  }
+
+  _applyActionsStep(actions, i + 1);
 }
 
 // ── 3.5 SELECT TARGET ───────────────────────────────────────
@@ -491,14 +558,13 @@ function selectTarget(targetUid) {
   const untapped = def.board.filter(c => !c.tapped);
 
   if (targetUid === 'player') {
-    // Can only attack player if no untapped creatures exist (tapped ones don't block)
+    // Can only attack player directly if no untapped creatures exist (tapped ones can't defend)
     if (untapped.length > 0) return alert('Must attack an untapped creature first (tapped creatures cannot defend)');
     G.combat.target = 'player';
   } else {
     const t = def.board.find(c => c.uid === targetUid);
     if (!t) return;
-    // Untapped creatures must be attacked before tapped ones
-    if (t.tapped && untapped.length > 0) return alert('Must attack untapped creatures first');
+    // Any creature can be attacked — tapped ones just won't counterattack
     G.combat.target = targetUid;
   }
 
@@ -623,7 +689,6 @@ function renderPlayer(pid, isTop) {
   const prefix       = isTop ? 'top' : 'bot';
   const isActive     = G.activePlayer === pid;
   const isDefending  = !isActive;
-  const def          = G.players[isActive ? defenderKey() : G.activePlayer];
 
   // Stats
   document.getElementById(`${prefix}-hp`).textContent    = p.hp;
@@ -656,20 +721,22 @@ function renderPlayer(pid, isTop) {
         && !c.summonedThisTurn
         && G.state === STATE.COMBAT_SELECT_ATTACKER;
 
-      // Can be clicked as target? Tapped creatures can be attacked only when no untapped exist
-      const untappedDefenders = def.board.filter(c => !c.tapped);
+      // Any defender creature can be targeted; tapped ones won't counterattack
       const canBeTarget = isDefending
-        && G.state === STATE.COMBAT_SELECT_TARGET
-        && (!c.tapped || untappedDefenders.length === 0);
+        && G.state === STATE.COMBAT_SELECT_TARGET;
+
+      // Can be clicked as tap target?
+      const canBeTapTarget = G.state === STATE.COMBAT_SELECT_TAP_TARGET
+        && G.pendingTap
+        && pid !== G.pendingTap.ownerPid
+        && !c.tapped;
 
       slot.classList.add('filled');
       if (c.tapped)           slot.classList.add('tapped-slot');
       if (canBeAttacker)      { slot.classList.add('can-attack'); slot.onclick = () => selectAttacker(c.uid); slot.title = `Attack with ${c.name}`; }
       if (canBeTarget)        { slot.classList.add('targetable');  slot.onclick = () => selectTarget(c.uid);
         slot.title = c.tapped ? `Attack ${c.name} (tapped — no counterattack)` : `Attack ${c.name} (will counterattack!)`; }
-      if (isDefending && !canBeTarget && G.state === STATE.COMBAT_SELECT_TARGET && c.tapped) {
-        slot.title = `${c.name} is tapped — attack untapped creatures first`;
-      }
+      if (canBeTapTarget)     { slot.classList.add('targetable'); slot.onclick = () => selectTapTarget(c.uid); slot.title = `Tap ${c.name}`; }
       if (c.summonedThisTurn && isActive) slot.classList.add('summoning-sick');
 
       // Incoming damage preview
@@ -933,6 +1000,12 @@ function renderControls() {
       break;
     }
 
+    case STATE.COMBAT_SELECT_TAP_TARGET: {
+      const tapName = G.pendingTap ? G.pendingTap.cardName : '?';
+      hint(ctrl, `🌀 ${tapName}: click an enemy creature to tap it`);
+      break;
+    }
+
     case STATE.COMBAT_RESOLVE:
       hint(ctrl, `3.7 · Resolving combat…`);
       break;
@@ -964,16 +1037,17 @@ function hint(parent, text) {
 
 // ---- PHASE BAR ----
 const PHASE_STEPS = [
-  { key: STATE.MAINTENANCE,            label: '1 · Maintenance' },
-  { key: STATE.PLAY_CREATURES,         label: '2 · Play / Summon' },
-  { key: STATE.COMBAT_PRE_ACTIONS,     label: '3.0 · Pre-Combat Actions' },
-  { key: STATE.COMBAT_SELECT_ATTACKER, label: '3.1 · Select Attacker' },
-  { key: STATE.COMBAT_ATTACK_ACTIONS,  label: '3.2 · Attack Actions' },
-  { key: STATE.COMBAT_APPLY_ACTIONS,   label: '3.4 · Apply Actions' },
-  { key: STATE.COMBAT_SELECT_TARGET,   label: '3.5 · Select Target' },
-  { key: STATE.COMBAT_BLOCK,           label: '3.6 · Block' },
-  { key: STATE.COMBAT_RESOLVE,         label: '3.7 · Resolve' },
-  { key: STATE.END_TURN,               label: '4 · End Turn' },
+  { key: STATE.MAINTENANCE,              label: '1 · Maintenance' },
+  { key: STATE.PLAY_CREATURES,           label: '2 · Play / Summon' },
+  { key: STATE.COMBAT_PRE_ACTIONS,       label: '3.0 · Pre-Combat Actions' },
+  { key: STATE.COMBAT_SELECT_ATTACKER,   label: '3.1 · Select Attacker' },
+  { key: STATE.COMBAT_ATTACK_ACTIONS,    label: '3.2 · Attack Actions' },
+  { key: STATE.COMBAT_APPLY_ACTIONS,     label: '3.4 · Apply Actions' },
+  { key: STATE.COMBAT_SELECT_TAP_TARGET, label: '· Select Tap Target' },
+  { key: STATE.COMBAT_SELECT_TARGET,     label: '3.5 · Select Target' },
+  { key: STATE.COMBAT_BLOCK,             label: '3.6 · Block' },
+  { key: STATE.COMBAT_RESOLVE,           label: '3.7 · Resolve' },
+  { key: STATE.END_TURN,                 label: '4 · End Turn' },
 ];
 
 function renderPhaseBar() {
